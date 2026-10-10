@@ -7,9 +7,10 @@ import pytest
 
 from bench.benchmark_runner import same_partition
 from bench.synthetic import generate_queens, regions_contiguous, render_queens
+from core.dlx import DancingLinks
 from core.solver_base import UnsolvableError
 from solvers.queens import rules
-from solvers.queens.solver import DancingLinks, QueensBoard, QueensSolver, is_valid_solution
+from solvers.queens.solver import QueensBoard, QueensSolver, is_valid_solution
 from solvers.queens.vision import QueensVisionParser
 
 
