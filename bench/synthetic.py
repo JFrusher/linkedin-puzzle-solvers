@@ -18,7 +18,10 @@ import numpy as np
 from core import visualizer
 from core.nlp import dictionary_words
 from solvers.crossclimb.solver import CrossclimbBoard
+from solvers.patches.solver import Clue, Patch, PatchesBoard, PatchesSolver
 from solvers.queens.solver import Cell, QueensBoard, QueensSolver
+from solvers.sudoku.solver import SudokuBoard, SudokuSolver
+from solvers.sudoku.solver import units as sudoku_units
 from solvers.tango.solver import Constraint, Grid, Relation, Symbol, TangoBoard, TangoSolver
 from solvers.wend.solver import MIN_WORD_LENGTH, WendBoard, WendSolver
 from solvers.zip.solver import ZipBoard, ZipSolver
@@ -303,6 +306,74 @@ def _open_sides(cell: Cell, free: set[Cell]) -> int:
     return sum((cell[0] + dr, cell[1] + dc) in free for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)))
 
 
+def generate_sudoku(seed: int) -> tuple[SudokuBoard, list[list[int]]]:
+    """Random full grid, then givens removed one at a time while the answer stays unique."""
+    rng = random.Random(seed)
+    grid = [[0] * 6 for _ in range(6)]
+    cells = [(r, c) for r in range(6) for c in range(6)]
+
+    def fill(index: int) -> bool:
+        if index == len(cells):
+            return True
+        r, c = cells[index]
+        for digit in rng.sample(range(1, 7), 6):
+            grid[r][c] = digit
+            if all(
+                not (other != (r, c) and grid[other[0]][other[1]] == digit)
+                for _, unit in sudoku_units()
+                if (r, c) in unit
+                for other in unit
+            ) and fill(index + 1):
+                return True
+        grid[r][c] = 0
+        return False
+
+    fill(0)
+    givens = {cell: grid[cell[0]][cell[1]] for cell in cells}
+    for cell in rng.sample(cells, len(cells)):
+        trial = {key: value for key, value in givens.items() if key != cell}
+        if len(list(islice(SudokuSolver().solutions(SudokuBoard(trial)), 2))) == 1:
+            givens = trial
+    return SudokuBoard(givens), grid
+
+
+def generate_patches(n: int, seed: int) -> tuple[PatchesBoard, list[Patch]]:
+    """Random rectangle tiling with one clue per rectangle; vague "any" clues are sharpened until unique."""
+    rng = random.Random(seed)
+    for _ in range(1000):
+        free = {(r, c) for r in range(n) for c in range(n)}
+        rects: list[tuple[int, int, int, int]] = []
+        while free:
+            top, left = min(free)
+            sizes = [
+                (h, w)
+                for h in range(1, 4)
+                for w in range(1, 4)
+                if {(top + i, left + j) for i in range(h) for j in range(w)} <= free
+            ]
+            h, w = rng.choice(sizes)
+            rects.append((top, left, h, w))
+            free -= {(top + i, left + j) for i in range(h) for j in range(w)}
+        clues = []
+        truth_shapes: dict[Cell, str] = {}
+        for top, left, h, w in rects:
+            shape = "square" if h == w else "tall" if h > w else "wide"
+            cell = (top + rng.randrange(h), left + rng.randrange(w))
+            truth_shapes[cell] = shape
+            clues.append(Clue(cell, h * w, "any" if rng.random() < 0.4 else shape))
+        for _ in range(len(clues) + 1):
+            board = PatchesBoard(n, tuple(sorted(clues, key=lambda clue: clue.cell)))
+            answers = list(islice(PatchesSolver().solutions(board), 2))
+            if len(answers) == 1:
+                return board, answers[0]
+            vague = [i for i, clue in enumerate(clues) if clue.shape == "any"]
+            if not vague:
+                break
+            i = rng.choice(vague)
+            clues[i] = Clue(clues[i].cell, clues[i].area, truth_shapes[clues[i].cell])
+    raise ValueError(f"could not make a one-answer {n}x{n} Patches board")
+
+
 WEND_SAMPLE = WendBoard(
     letters=(
         tuple("APPLE"),
@@ -453,6 +524,39 @@ def render_wend(board: WendBoard, seed: int = 0) -> np.ndarray:
             cv2.rectangle(image, (x, y), (x + slot, y + slot), INK, 2)
         y += slot + 14
     return skew(image, seed, strength=0.02)
+
+
+def render_sudoku(board: SudokuBoard, seed: int = 0) -> np.ndarray:
+    image = _canvas(6)
+    cv2.rectangle(image, (MARGIN, MARGIN), (MARGIN + 6 * CELL, MARGIN + 6 * CELL), (255, 255, 255), -1)
+    _grid_lines(image, 6)
+    for r in (2, 4):
+        cv2.line(image, (MARGIN, MARGIN + r * CELL), (MARGIN + 6 * CELL, MARGIN + r * CELL), INK, 3)
+    cv2.line(image, (MARGIN + 3 * CELL, MARGIN), (MARGIN + 3 * CELL, MARGIN + 6 * CELL), INK, 3)
+    for (r, c), digit in board.givens.items():
+        center = (MARGIN + c * CELL + CELL // 2, MARGIN + r * CELL + CELL // 2)
+        visualizer.draw_label(image, str(digit), center, 1.4, (20, 20, 20, 255))
+    _border(image, 6)
+    return skew(image, seed)
+
+
+def render_patches(board: PatchesBoard, seed: int = 0) -> np.ndarray:
+    """Clue cells show the area in the upper half and the shape icon (none for "any") in the lower half."""
+    n = board.size
+    image = _canvas(n)
+    cv2.rectangle(image, (MARGIN, MARGIN), (MARGIN + n * CELL, MARGIN + n * CELL), (255, 255, 255), -1)
+    _grid_lines(image, n)
+    icon = {"square": (16, 16), "tall": (11, 20), "wide": (22, 11)}
+    for clue in board.clues:
+        r, c = clue.cell
+        x, y = MARGIN + c * CELL + CELL // 2, MARGIN + r * CELL
+        visualizer.draw_label(image, str(clue.area), (x, y + int(CELL * 0.33)), 0.9, (20, 20, 20, 255))
+        if clue.shape != "any":
+            w, h = icon[clue.shape]
+            cy = y + int(CELL * 0.72)
+            cv2.rectangle(image, (x - w // 2, cy - h // 2), (x + w // 2, cy + h // 2), INK, 2)
+    _border(image, n)
+    return skew(image, seed)
 
 
 def render_crossclimb(board: CrossclimbBoard) -> np.ndarray:
