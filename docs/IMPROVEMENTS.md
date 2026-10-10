@@ -171,9 +171,34 @@ on SBERT, which runs in CI; the pair selection logic is also tested locally with
 - **End links:** the top and bottom words must each be one letter away from a ladder end.
 
 ### Pinpoint
-- **Category kinds:** add checks for word-play categories such as "___ X" compounds, hidden words and
-  sound-alikes, alongside the meaning-based score.
-- **Generality penalty:** reduce the score of very shallow hypernyms (entity, object, whole).
+
+Real puzzles from fan answer sites (unofficial; check against the game before relying on them):
+
+| Date | Clues | Category | Kind |
+|---|---|---|---|
+| 10 Oct 2026 (#893) | Hang, Perfect, Top, Count to, Nine times out of | not published yet; every clue fits "___ ten" | fill-in-the-blank phrase |
+| 9 Oct 2026 (#892) | Blue, Right, Bowhead, Humpback, Orca | Types of whales | members of a class |
+| 8 Oct 2026 (#891) | Code, Circuit, Ice, Deal, Tie | Words before "breaker" | compound word |
+| 3 Oct 2026 | (clues not found) | Words after "common" | compound / phrase |
+| 30 Sep 2026 | (clues not found) | Types of rings | members of a class |
+| 27 Sep 2026 | (clues not found) | Words before "share" | compound word |
+| 26 Sep 2026 | (clues not found) | Different definitions of "point" | one word, many senses |
+| 25 Sep 2026 | (clues not found) | Words after "mixed" | compound / phrase |
+| 24 Sep 2026 | (clues not found) | Things associated with steam | association |
+| 23 Sep 2026 | (clues not found) | Things shaped like triangles | shared property |
+| 21–22 Sep 2026 | (clues not found) | Common national demonyms; Famous philosophers | members of a class |
+
+About half the categories are word play: a hidden word joins every clue into a compound or phrase
+("code breaker", "hang ten"). The current engine only scores meaning (hypernyms + embeddings), so it
+cannot find these. Three checks would cover what was found:
+
+- **Join word:** find a word X such that "clue X", "X clue" or "clueX" is a WordNet compound for most
+  clues. WordNet has "codebreaker" and "icebreaker", but phrases such as "hang ten" need a phrase list
+  WordNet lacks.
+- **Partial-name class:** "Blue", "Right" and "Bowhead" are whale names only with "whale" added, so try
+  "clue + candidate" as a lemma (blue whale, right whale) as well as hypernyms.
+- **Many senses:** when every clue matches a different WordNet sense of one word ("point"), rank that
+  word as the category.
 
 ## Order
 
