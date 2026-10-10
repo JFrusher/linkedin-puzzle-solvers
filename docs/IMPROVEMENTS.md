@@ -32,6 +32,25 @@ steps. Most of that came from boards with several answers, not from missing rule
 8×8 board has one answer takes about 9 s, because the search must exhaust every path; this is the clearest
 sign that Zip pruning is weak.
 
+## Results
+
+### Queens (done)
+
+`Search` placements fell from 18–26% to **0%** over 80 one-answer boards from 7x7 to 10x10. Removing one rule at a
+time shows each earns its place:
+
+| Rule set | `Search` placements | Other effect |
+|---|---:|---|
+| All four rules | 0 / 680 | Try and Fail fires 2 times |
+| Without Try and Fail | 1 / 680 | |
+| Without Confinement | 0 / 680 | Try and Fail fires 40 times |
+| Without Shared Attack | 0 / 680 | Try and Fail fires 106 times |
+| Single Choice only | 146 / 680 | |
+
+The 2x1 domino rule is the one-region case of Shared Attack: a region stuck in one row attacks the rest of that
+row. **`solve` keeps plain DLX.** Running the rules to completion takes 1.1–2.9 ms against 0.3–0.9 ms for DLX,
+and DLX already expands about N nodes, so there is no search left to prune. The rules drive the explanation.
+
 ## Rules by game
 
 ### Queens

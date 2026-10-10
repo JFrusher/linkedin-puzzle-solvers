@@ -12,6 +12,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 
 from core.solver_base import BaseSolver, UnsolvableError
+from solvers.queens import rules
 
 Cell = tuple[int, int]
 
@@ -178,60 +179,20 @@ class QueensSolver(BaseSolver[QueensBoard, list[Cell]]):
         self.nodes_expanded = links.nodes_expanded
 
     def explain(self, board_state: QueensBoard, solution: list[Cell]) -> None:
-        """Replay the solution as human deductions: forced placements first, search choices otherwise."""
-        board = board_state
-        n = board.size
-        candidates = {(r, c) for r in range(n) for c in range(n)}
-        placed: set[Cell] = set()
-
-        def place(cell: Cell) -> None:
-            placed.add(cell)
-            r, c = cell
-            region = board.regions[r][c]
-            candidates.difference_update(
-                {
-                    other
-                    for other in candidates
-                    if other[0] == r
-                    or other[1] == c
-                    or board.regions[other[0]][other[1]] == region
-                    or (abs(other[0] - r) <= 1 and abs(other[1] - c) <= 1)
-                }
-            )
-
-        while len(placed) < n:
-            forced = self._forced_cell(board, candidates, placed)
-            if forced is not None:
-                cell, reason = forced
-                self.explainer.add("Single Choice", f"Cell {cell} must be a Queen because {reason}", cell)
-            else:
-                cell = min(set(solution) - placed)
-                self.explainer.add(
+        """Replay the solution with human rules; branch on the known solution only when no rule fires."""
+        state = rules.QueensState.start(board_state)
+        while not state.solved():
+            deduction = rules.next_deduction(state)
+            if deduction is None:
+                cell = min(set(solution) - state.placed)
+                deduction = rules.Deduction(
                     "Search",
-                    f"No forced move remains; Algorithm X branches on Cell {cell}, which leads to a valid completion",
+                    f"No rule applies; Algorithm X branches on Cell {cell}, which leads to a valid completion",
                     cell,
                 )
-            place(cell)
-
-    @staticmethod
-    def _forced_cell(board: QueensBoard, candidates: set[Cell], placed: set[Cell]) -> tuple[Cell, str] | None:
-        n = board.size
-        done_rows = {r for r, _ in placed}
-        done_cols = {c for _, c in placed}
-        done_regions = {board.regions[r][c] for r, c in placed}
-        for region in sorted(set(range(n)) - done_regions):
-            slots = [cell for cell in candidates if board.regions[cell[0]][cell[1]] == region]
-            if len(slots) == 1:
-                return slots[0], f"Region {region} has no other valid slot"
-        for row in sorted(set(range(n)) - done_rows):
-            slots = [cell for cell in candidates if cell[0] == row]
-            if len(slots) == 1:
-                return slots[0], f"Row {row} has no other valid slot"
-        for col in sorted(set(range(n)) - done_cols):
-            slots = [cell for cell in candidates if cell[1] == col]
-            if len(slots) == 1:
-                return slots[0], f"Column {col} has no other valid slot"
-        return None
+            state.apply(deduction)
+            cell = deduction.place if deduction.place is not None else min(deduction.eliminate)
+            self.explainer.add(deduction.rule, deduction.reason, cell)
 
 
 def is_valid_solution(board: QueensBoard, queens: list[Cell]) -> bool:
