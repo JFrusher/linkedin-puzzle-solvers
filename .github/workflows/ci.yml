@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies (CPU torch)
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+
+      - name: Cache models and corpora
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.EasyOCR
+            ~/.cache/huggingface
+            ~/nltk_data
+          key: models-${{ runner.os }}-v1
+
+      - name: Download WordNet
+        run: python -m nltk.downloader wordnet
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Unit tests
+        run: pytest -q
+
+      - name: Benchmark smoke test
+        run: python main.py benchmark --game all --repeats 3
