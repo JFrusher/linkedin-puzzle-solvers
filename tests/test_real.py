@@ -67,3 +67,8 @@ def test_overlay_draws_on_the_screenshot(name: str) -> None:
     board = game.parser().parse(picture)
     overlay = game.parser().generate_overlay(picture, board, game.solver().solve(board))
     assert overlay.shape[:2] == picture.shape[:2]
+
+
+@pytest.mark.parametrize("name", ["queens", "zip", "tango", "mini-sudoku", "patches", "wend"])
+def test_game_is_detected_from_the_screenshot_alone(name: str) -> None:
+    assert solve_image(None, real.image(name))["game"] == name

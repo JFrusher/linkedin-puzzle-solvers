@@ -59,6 +59,14 @@ GAMES: dict[str, Game] = {
 }
 
 
+DETECTION_ORDER = ("queens", "zip", "tango", "mini-sudoku", "wend", "patches")
+"""Screenshot games tried in turn when no game is named; the first that reads and solves the board wins.
+
+Patches goes last: its badge reader also finds the coloured regions of a Queens board and the symbols of a
+Tango board. Crossclimb is left out: its layout has no real capture to check against yet.
+"""
+
+
 def get_game(name: str) -> Game:
     """Look up a game by name, failing with the list of valid names."""
     if name not in GAMES:

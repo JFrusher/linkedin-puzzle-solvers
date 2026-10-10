@@ -93,35 +93,99 @@ open neighbour must start or end a word) and Only Word explain each placement.
 
 ---
 
-## Quick start
+## Running it
+
+Nothing is hosted for you: everything runs on your own computer. One Python engine reads the screenshot,
+solves the puzzle and draws the answer, and you reach it through any of these:
+
+```text
+                 ┌─────────────── your computer ────────────────┐
+ screenshot ───► │  Web playground  (streamlit, localhost:8501) │
+ or typed board  │  Command line    (python main.py solve …)    │──► same engine:
+                 │  Browser extension ──► local server :8765    │    read → solve → explain → draw
+                 └──────────────────────────────────────────────┘
+```
+
+### Setup (once, Python 3.11)
 
 ```bash
+git clone https://github.com/JFrusher/linkedin-puzzle-solvers && cd linkedin-puzzle-solvers
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu   # CPU build, ~2 GB smaller
 pip install -r requirements.txt
 python -m nltk.downloader wordnet
+```
 
-python main.py solve --game queens --image board.png        # writes board_solved.png
-python main.py solve --game zip --image zip.png --json      # machine-readable result
-python main.py solve --game wend --image wend.png --slots slots.png   # word slots in their own screenshot
-python main.py solve --game wend --text examples/wend.txt   # or type the board in (Wend, Crossclimb)
-python main.py stream --game pinpoint                       # type clues one at a time
+The first OCR call downloads the EasyOCR weights (GitHub) and the first Pinpoint or Crossclimb call downloads
+`all-MiniLM-L6-v2` (Hugging Face); after that everything works offline.
+
+### Paste a screenshot (the quickest way)
+
+1. `streamlit run web_app/app.py` opens the playground at `localhost:8501` on the paste page.
+2. Screenshot the board with **Win+Shift+S**.
+3. Click the paste box, press **Ctrl+V**, then **Enter**. The game is detected for you.
+4. Right-click the solved board → **Copy image**, and Ctrl+V it wherever you like (or use **Download PNG**).
+
+From a terminal, the same round trip is one command: it reads the clipboard, detects the game, saves
+`solved.png` and puts the solved board back on the clipboard (the copy-back is Windows only).
+
+```bash
+python main.py solve --paste
+```
+
+Detection tries Queens, Zip, Tango, Mini Sudoku, Wend and Patches in turn and keeps the first that reads and
+solves the board. Each reader rejects boards that are not its game, for example Queens needs coloured
+regions and Tango only orange and blue symbols, so the first success is the right one: 37 of 37 test
+screenshots (6 real, 31 synthetic) are detected correctly.
+
+### Command line
+
+```bash
+python main.py solve --image board.png                      # game detected; writes board_solved.png
+python main.py solve --game zip --image zip.png --json      # name the game; machine-readable result
+python main.py solve --game wend --image wend.png --slots slots.png   # Wend slots in their own screenshot
+python main.py solve --game wend --text examples/wend.txt   # type the board in (Wend, Crossclimb)
+python main.py stream --game pinpoint                       # type Pinpoint clues one at a time
 python main.py benchmark --game all                         # latency / memory / accuracy
-python main.py serve                                        # REST backend for the extension
-streamlit run web_app/app.py                                # interactive playground
 ```
 
 Typed boards (`--text`, or "Type the board" in the playground) skip vision for Wend and Crossclimb. Wend: one
 row of letters per line, `#` for a wall, then the word lengths. Crossclimb: the word length, the shared
 top/bottom clue, then the middle clues. See `examples/`.
 
-The first OCR or embedding call downloads the EasyOCR weights (GitHub) and `all-MiniLM-L6-v2` (Hugging Face).
-The Docker image bakes both in:
+### Web playground
+
+`streamlit run web_app/app.py`, then pick from the sidebar: paste a screenshot (auto-detect), or choose a game
+and use a synthetic sample, an uploaded screenshot or a typed board. Each run shows the solved board, the
+deduction log, latency and memory, and debug views of every vision stage.
+
+### Browser extension (solve on the LinkedIn page)
+
+1. Start the local server and leave it running: `python main.py serve` (listens on `127.0.0.1:8765`).
+2. In Chrome open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick the
+   `extension/` folder.
+3. Open a game on `linkedin.com/games/…` and click the extension icon.
+
+It screenshots the visible tab, sends it to your local server and draws the answer over the page; **Esc**
+hides it. The badge shows `…` while working, `✓` when done, `err` on a failure and `n/a` on a page that is not
+a supported game. Reload LinkedIn tabs that were open before the extension was installed. The whole board
+must be on screen (for Wend, the word slots too); Pinpoint is text, so use the playground or `stream`.
+
+### Docker (the server without installing Python)
 
 ```bash
 docker build -t puzzle-solvers .
-docker run -p 8765:8765 puzzle-solvers                       # serve
-docker run -v "$PWD:/data" puzzle-solvers solve --game tango --image /data/tango.png
+docker run -p 127.0.0.1:8765:8765 puzzle-solvers            # replaces `python main.py serve`
+docker run -v "$PWD:/data" puzzle-solvers solve --image /data/board.png
 ```
+
+The image bakes in every model, so containers start offline. Keep the `127.0.0.1:` prefix: the server has no
+login, and a plain `-p 8765:8765` exposes it to your whole network.
+
+### What is hosted
+
+Only GitHub Actions: CI runs the tests on every pull request and the Benchmark workflow re-runs the timings
+daily. The server answers one request at a time and has no login, so it is built for your own machine, not for
+public hosting.
 
 ---
 

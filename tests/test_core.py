@@ -2,6 +2,7 @@
 
 import http.client
 import json
+import pathlib
 import socket
 import threading
 from collections.abc import Iterator
@@ -10,6 +11,7 @@ from http.server import HTTPServer
 import numpy as np
 import pytest
 
+import main
 from bench.synthetic import generate_queens, render_queens
 from core.explainer import Explainer
 from core.solver_base import BaseSolver
@@ -114,3 +116,39 @@ def test_stalled_client_does_not_block_the_server(monkeypatch: pytest.MonkeyPatc
         stalled.close()
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_paste_solves_the_clipboard_and_copies_the_answer_back(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    from PIL import Image
+
+    board, _ = generate_queens(6, 1)
+    screenshot = Image.fromarray(render_queens(board, 1)[..., ::-1].copy())
+    monkeypatch.setattr("PIL.ImageGrab.grabclipboard", lambda: screenshot)
+    copied: list[pathlib.Path] = []
+    monkeypatch.setattr(main, "copy_image_to_clipboard", copied.append)
+    output = tmp_path / "solved.png"
+    assert main.main(["solve", "--paste", "--output", str(output), "--json"]) == 0
+    assert copied == [output] and output.exists()
+
+
+def test_empty_clipboard_says_what_to_do(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("PIL.ImageGrab.grabclipboard", lambda: None)
+    with pytest.raises(ValueError, match="Win\\+Shift\\+S"):
+        main.read_clipboard_image()
+
+
+def test_clipboard_copy_uses_powershell_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(main.sys, "platform", "win32")
+    monkeypatch.setattr(main.subprocess, "run", lambda command, check: calls.append(command))
+    main.copy_image_to_clipboard(pathlib.Path("solved.png"))
+    assert calls[0][:4] == ["powershell", "-NoProfile", "-STA", "-Command"] and "SetImage" in calls[0][4]
+    monkeypatch.setattr(main.sys, "platform", "linux")
+    with pytest.raises(OSError, match="Windows only"):
+        main.copy_image_to_clipboard(pathlib.Path("solved.png"))
+
+
+def test_typed_boards_still_need_a_game() -> None:
+    assert main.main(["solve", "--text", "examples/wend.txt"]) == 2

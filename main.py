@@ -12,6 +12,7 @@ import argparse
 import base64
 import dataclasses
 import json
+import subprocess
 import sys
 from enum import Enum
 from http import HTTPStatus
@@ -27,7 +28,7 @@ from rich.table import Table
 from core import visualizer
 from core.solver_base import UnsolvableError
 from core.vision_base import BaseVisionParser, GridNotFoundError
-from solvers import GAMES, get_game
+from solvers import DETECTION_ORDER, GAMES, get_game
 
 console = Console()
 MAX_REQUEST_BYTES = 20 * 1024 * 1024
@@ -48,11 +49,19 @@ def to_jsonable(value: Any) -> Any:
     return value
 
 
-def solve_image(game_name: str, image: np.ndarray, slots: np.ndarray | None = None) -> dict[str, Any]:
+def solve_image(game_name: str | None, image: np.ndarray, slots: np.ndarray | None = None) -> dict[str, Any]:
     """Parse, solve and render one screenshot; returns a JSON-ready payload plus the overlay layer.
 
+    ``game_name=None`` detects the game: each one in ``DETECTION_ORDER`` is tried until one reads and solves it.
     ``slots`` is a separate screenshot of Wend's word slots, for when they are not in ``image``.
     """
+    if game_name is None:
+        for name in DETECTION_ORDER:
+            try:
+                return solve_image(name, image, slots if name == "wend" else None)
+            except (GridNotFoundError, UnsolvableError, ValueError):
+                continue
+        raise ValueError(f"no game ({', '.join(DETECTION_ORDER)}) could read and solve this screenshot; pass --game")
     game = get_game(game_name)
     if game.parser is None:
         raise ValueError(f"{game_name} has no vision pipeline; use `python main.py stream --game {game_name}`")
@@ -91,6 +100,31 @@ def solve_text(game_name: str, text: str) -> dict[str, Any]:
     }
 
 
+def read_clipboard_image() -> np.ndarray:
+    """The image on the clipboard (Win+Shift+S puts screenshots there), as BGR."""
+    from PIL import ImageGrab
+
+    grabbed = ImageGrab.grabclipboard()
+    if isinstance(grabbed, list):  # copied files rather than pixels: use the first image file
+        grabbed = BaseVisionParser.load_image(grabbed[0]) if grabbed else None
+        if grabbed is not None:
+            return grabbed
+    if grabbed is None:
+        raise ValueError("the clipboard holds no image: take a screenshot (Win+Shift+S) first")
+    return cv2.cvtColor(np.asarray(grabbed.convert("RGB")), cv2.COLOR_RGB2BGR)
+
+
+def copy_image_to_clipboard(path: Path) -> None:
+    """Put a PNG on the Windows clipboard, so the solved board can be pasted anywhere."""
+    if sys.platform != "win32":
+        raise OSError("copying images to the clipboard is supported on Windows only")
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms, System.Drawing; "
+        f"[System.Windows.Forms.Clipboard]::SetImage([System.Drawing.Image]::FromFile('{path.resolve()}'))"
+    )
+    subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", script], check=True)
+
+
 def encode_png(image: np.ndarray) -> str:
     ok, buffer = cv2.imencode(".png", image)
     if not ok:
@@ -114,6 +148,8 @@ TYPED_GAMES = [name for name, game in GAMES.items() if game.text]
 def cmd_solve(args: argparse.Namespace) -> int:
     if args.text and args.slots:
         raise ValueError("--slots goes with --image; type the word lengths on the board's last line instead")
+    if args.text and not args.game:
+        raise ValueError(f"typed boards need --game ({', '.join(TYPED_GAMES)})")
     if args.text:
         return _print_outcome(
             args,
@@ -121,12 +157,21 @@ def cmd_solve(args: argparse.Namespace) -> int:
                 args.game, sys.stdin.read() if args.text == "-" else Path(args.text).read_text(encoding="utf-8")
             ),
         )
-    image = BaseVisionParser.load_image(args.image)
+    image = read_clipboard_image() if args.paste else BaseVisionParser.load_image(args.image)
     slots = BaseVisionParser.load_image(args.slots) if args.slots else None
     outcome = solve_image(args.game, image, slots)
-    output = Path(args.output) if args.output else Path(args.image).with_name(f"{Path(args.image).stem}_solved.png")
+    if args.output:
+        output = Path(args.output)
+    else:
+        output = Path("solved.png") if args.paste else Path(args.image).with_name(f"{Path(args.image).stem}_solved.png")
     cv2.imwrite(str(output), visualizer.composite(image, outcome["layer"]))
     outcome["overlay"] = str(output)
+    if args.paste:
+        try:
+            copy_image_to_clipboard(output)
+            outcome["overlay"] += " (also on the clipboard: Ctrl+V it anywhere)"
+        except OSError as error:  # the PNG is saved either way
+            outcome["overlay"] += f" (not copied to the clipboard: {error})"
     return _print_outcome(args, outcome)
 
 
@@ -136,7 +181,7 @@ def _print_outcome(args: argparse.Namespace, outcome: dict[str, Any]) -> int:
         print(json.dumps(payload, indent=2))
         return 0
     profile = outcome["profile"]
-    table = Table(title=f"{get_game(args.game).title}")
+    table = Table(title=f"{get_game(outcome['game']).title}")
     table.add_column("Metric")
     table.add_column("Value", justify="right")
     table.add_row("Solve latency", f"{profile.latency_us:,.1f} µs")
@@ -144,7 +189,7 @@ def _print_outcome(args: argparse.Namespace, outcome: dict[str, Any]) -> int:
     table.add_row("Nodes expanded", f"{profile.nodes_expanded:,}")
     if "overlay" in outcome:
         table.add_row("Overlay", outcome["overlay"])
-    if args.game in TYPED_GAMES:
+    if outcome["game"] in TYPED_GAMES:
         table.add_row("Answer", ", ".join(item.word for item in outcome["solution"]))
     console.print(table)
     console.print(outcome["markdown"])
@@ -255,9 +300,12 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
 
     solve = commands.add_parser("solve", help="solve a screenshot and write an overlay image")
-    solve.add_argument("--game", required=True, choices=[name for name, game in GAMES.items() if game.parser])
+    solve.add_argument(
+        "--game", choices=[name for name, game in GAMES.items() if game.parser], help="leave out to detect it"
+    )
     source = solve.add_mutually_exclusive_group(required=True)
     source.add_argument("--image", help="path to the screenshot")
+    source.add_argument("--paste", action="store_true", help="read the screenshot from the clipboard (Win+Shift+S)")
     source.add_argument("--text", help=f"typed board ({', '.join(TYPED_GAMES)}): a text file, or - for stdin")
     solve.add_argument("--slots", help="Wend only: screenshot of the word slots, when they are not in --image")
     solve.add_argument("--output", help="overlay path (default: <image>_solved.png)")

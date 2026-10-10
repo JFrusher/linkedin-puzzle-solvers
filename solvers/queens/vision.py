@@ -10,12 +10,18 @@ from core import visualizer
 from core.vision_base import GRID_SIDE, BaseVisionParser
 from solvers.queens.solver import Cell, QueensBoard
 
+MIN_COLOURED = 0.4
+"""Share of saturated pixels a Queens board needs: its regions fill 0.66+, other games' boards 0.21 at most."""
+
 
 class QueensVisionParser(BaseVisionParser[QueensBoard, list[Cell]]):
     """Detect the N x N grid and group cells into N colour regions."""
 
     def parse(self, image: np.ndarray) -> QueensBoard:
         grid = self.rectify_grid(image)
+        coloured = float((cv2.cvtColor(grid.image, cv2.COLOR_BGR2HSV)[..., 1] > 60).mean())
+        if coloured < MIN_COLOURED:
+            raise ValueError(f"not a Queens board: only {coloured:.0%} of it is coloured regions")
         n = self.detect_grid_size(grid.image)
         cells = self.extract_cells(grid.image, n, margin=0.3)
         colors = np.array(

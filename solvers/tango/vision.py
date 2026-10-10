@@ -20,6 +20,8 @@ SIGN_MIN_INK = 0.04
 """Fraction of dark pixels the probe's centre needs before it can hold a sign."""
 SIGN_DARK = 160
 """Grey level below which a pixel counts as sign ink; LinkedIn's brown signs are no darker than 117."""
+MAX_OTHER_HUES = 0.1
+"""Share of coloured pixels allowed outside sun orange and moon blue; Tango boards measure 0, Patches 0.41+."""
 SATURATED = 80
 """HSV saturation above which a pixel belongs to a coloured symbol."""
 
@@ -47,6 +49,11 @@ def _relation(ink: np.ndarray) -> Relation:
 class TangoVisionParser(BaseVisionParser[TangoBoard, Grid]):
     def parse(self, image: np.ndarray) -> TangoBoard:
         grid = self.rectify_grid(image)
+        hsv = cv2.cvtColor(grid.image, cv2.COLOR_BGR2HSV)
+        hues = hsv[..., 0][hsv[..., 1] > 60]
+        other = float(((hues > 30) & (hues < 95) | (hues > 125)).mean()) if hues.size else 0.0  # OpenCV hue: 0-180
+        if other > MAX_OTHER_HUES:
+            raise ValueError(f"not a Tango board: {other:.0%} of its colour is neither sun orange nor moon blue")
         n = self.detect_grid_size(grid.image)
         if n % 2:
             raise ValueError(f"detected an odd Tango grid size {n}")
