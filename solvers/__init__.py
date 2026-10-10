@@ -10,9 +10,13 @@ from core.solver_base import BaseSolver
 from core.vision_base import BaseVisionParser
 from solvers.crossclimb.solver import CrossclimbSolver
 from solvers.crossclimb.vision import CrossclimbVisionParser
+from solvers.patches.solver import PatchesSolver
+from solvers.patches.vision import PatchesVisionParser
 from solvers.pinpoint.semantic_engine import PinpointSolver
 from solvers.queens.solver import QueensSolver
 from solvers.queens.vision import QueensVisionParser
+from solvers.sudoku.solver import SudokuSolver
+from solvers.sudoku.vision import SudokuVisionParser
 from solvers.tango.solver import TangoSolver
 from solvers.tango.vision import TangoVisionParser
 from solvers.wend.solver import WendSolver
@@ -36,7 +40,7 @@ GAMES: dict[str, Game] = {
         Game("queens", "Queens (Crowns) — DLX exact cover", QueensSolver, QueensVisionParser),
         Game("zip", "Zip (Pathfinder) — A* search", ZipSolver, ZipVisionParser),
         Game("tango", "Tango (Sun & Moon) — SAT", TangoSolver, TangoVisionParser),
-        Game("pinpoint", "Pinpoint (Patches) — SBERT centroid", PinpointSolver, None),
+        Game("pinpoint", "Pinpoint (Categories) — SBERT centroid", PinpointSolver, None),
         Game(
             "crossclimb",
             "Crossclimb (Word Ladder) — embeddings + Hamming graph",
@@ -44,6 +48,8 @@ GAMES: dict[str, Game] = {
             CrossclimbVisionParser,
         ),
         Game("wend", "Wend (Word Partitioning) — Trie DFS", WendSolver, WendVisionParser),
+        Game("mini-sudoku", "Mini Sudoku (6x6) — SAT", SudokuSolver, SudokuVisionParser),
+        Game("patches", "Patches (Rectangles) — DLX exact cover", PatchesSolver, PatchesVisionParser),
     )
 }
 

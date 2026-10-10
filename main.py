@@ -15,7 +15,7 @@ import json
 import sys
 from enum import Enum
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -48,13 +48,20 @@ def to_jsonable(value: Any) -> Any:
     return value
 
 
-def solve_image(game_name: str, image: np.ndarray) -> dict[str, Any]:
-    """Parse, solve and render one screenshot; returns a JSON-ready payload plus the overlay layer."""
+def solve_image(game_name: str, image: np.ndarray, slots: np.ndarray | None = None) -> dict[str, Any]:
+    """Parse, solve and render one screenshot; returns a JSON-ready payload plus the overlay layer.
+
+    ``slots`` is a separate screenshot of Wend's word slots, for when they are not in ``image``.
+    """
     game = get_game(game_name)
     if game.parser is None:
         raise ValueError(f"{game_name} has no vision pipeline; use `python main.py stream --game {game_name}`")
+    if slots is not None and game_name != "wend":
+        raise ValueError("a slots screenshot only applies to Wend")
     parser: BaseVisionParser[Any, Any] = game.parser()
     board = parser.parse(image)
+    if slots is not None:
+        board = dataclasses.replace(board, word_lengths=parser.slot_lengths(slots))  # type: ignore[attr-defined]
     result = game.solver().run(board)
     return {
         "game": game_name,
@@ -87,7 +94,8 @@ def decode_image(data: str) -> np.ndarray:
 
 def cmd_solve(args: argparse.Namespace) -> int:
     image = BaseVisionParser.load_image(args.image)
-    outcome = solve_image(args.game, image)
+    slots = BaseVisionParser.load_image(args.slots) if args.slots else None
+    outcome = solve_image(args.game, image, slots)
     output = Path(args.output) if args.output else Path(args.image).with_name(f"{Path(args.image).stem}_solved.png")
     cv2.imwrite(str(output), visualizer.composite(image, outcome["layer"]))
     if args.json:
@@ -153,11 +161,14 @@ class SolveHandler(BaseHTTPRequestHandler):
             self._send(HTTPStatus.NOT_FOUND, {"error": f"no route {self.path}"})
 
     def do_POST(self) -> None:  # noqa: N802 (http.server naming)
-        length = int(self.headers.get("Content-Length", "0"))
-        if length > MAX_REQUEST_BYTES:
-            self._send(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": f"body exceeds {MAX_REQUEST_BYTES} bytes"})
+        # Only JSON: a browser page cannot send it cross-site without a CORS preflight, which is never granted.
+        if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
+            self._send(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"error": "Content-Type must be application/json"})
             return
         try:
+            length = int(self.headers.get("Content-Length", ""))
+            if not 0 <= length <= MAX_REQUEST_BYTES:
+                raise ValueError(f"Content-Length must be between 0 and {MAX_REQUEST_BYTES} bytes")
             request = json.loads(self.rfile.read(length))
             if not isinstance(request, dict):
                 raise ValueError("request body must be a JSON object")
@@ -180,10 +191,14 @@ class SolveHandler(BaseHTTPRequestHandler):
                 self._send(HTTPStatus.NOT_FOUND, {"error": f"no route {self.path}"})
         except (KeyError, ValueError, GridNotFoundError, UnsolvableError, json.JSONDecodeError) as error:
             self._send(HTTPStatus.BAD_REQUEST, {"error": f"{type(error).__name__}: {error}"})
+        except Exception as error:  # the client still gets an answer it can show
+            self._send(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"{type(error).__name__}: {error}"})
+            raise
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
-    server = ThreadingHTTPServer((args.host, args.port), SolveHandler)
+    # One request at a time: solves profile memory with tracemalloc, which cannot run twice at once.
+    server = HTTPServer((args.host, args.port), SolveHandler)
     console.print(f"Serving on http://{args.host}:{args.port} (POST /solve, POST /pinpoint, GET /health)")
     try:
         server.serve_forever()
@@ -201,6 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
     solve = commands.add_parser("solve", help="solve a screenshot and write an overlay image")
     solve.add_argument("--game", required=True, choices=[name for name, game in GAMES.items() if game.parser])
     solve.add_argument("--image", required=True, help="path to the screenshot")
+    solve.add_argument("--slots", help="Wend only: screenshot of the word slots, when they are not in --image")
     solve.add_argument("--output", help="overlay path (default: <image>_solved.png)")
     solve.add_argument("--json", action="store_true", help="print the full result as JSON")
     solve.set_defaults(handler=cmd_solve)

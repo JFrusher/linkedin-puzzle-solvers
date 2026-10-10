@@ -3,10 +3,10 @@
 // and the transparent overlay comes back to the content script.
 
 const BACKEND = "http://127.0.0.1:8765";
-const SUPPORTED = ["queens", "zip", "tango", "crossclimb", "wend"];
+const SUPPORTED = ["queens", "zip", "tango", "crossclimb", "wend", "mini-sudoku", "patches"];
 
 function gameFromUrl(url) {
-  const match = new URL(url).pathname.match(/^\/games\/([a-z]+)/);
+  const match = new URL(url).pathname.match(/^\/games\/([a-z-]+)/);
   return match && SUPPORTED.includes(match[1]) ? match[1] : null;
 }
 

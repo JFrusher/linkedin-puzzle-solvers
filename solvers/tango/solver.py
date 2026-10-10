@@ -10,7 +10,7 @@ Variable ``x(r, c)`` is true iff cell (r, c) holds a Sun. CNF encoding:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -69,6 +69,13 @@ class TangoSolver(BaseSolver[TangoBoard, Grid]):
     name = "tango"
 
     def solve(self, board_state: TangoBoard) -> Grid:
+        solution = next(self.solutions(board_state), None)
+        if solution is None:
+            raise UnsolvableError("the Tango CNF is unsatisfiable")
+        return solution
+
+    def solutions(self, board_state: TangoBoard) -> Iterator[Grid]:
+        """Yield every valid grid, blocking each model once found; take two to test uniqueness."""
         n = board_state.size
 
         def var(cell: Cell) -> int:
@@ -98,50 +105,30 @@ class TangoSolver(BaseSolver[TangoBoard, Grid]):
             top = max(top, encoding.nv)
             clauses += encoding.clauses
 
+        cells = [(r, c) for r in range(n) for c in range(n)]
         with Minisat22(bootstrap_with=clauses) as sat:
-            if not sat.solve():
-                raise UnsolvableError("the Tango CNF is unsatisfiable")
-            model = set(lit for lit in sat.get_model() if lit > 0)
-            self.nodes_expanded = int(sat.accum_stats()["decisions"])
-        return [[Symbol.SUN if var((r, c)) in model else Symbol.MOON for c in range(n)] for r in range(n)]
+            while sat.solve():
+                model = set(lit for lit in sat.get_model() if lit > 0)
+                self.nodes_expanded = int(sat.accum_stats()["decisions"])
+                yield [[Symbol.SUN if var((r, c)) in model else Symbol.MOON for c in range(n)] for r in range(n)]
+                sat.add_clause([-var(cell) if var(cell) in model else var(cell) for cell in cells])
 
     def explain(self, board_state: TangoBoard, solution: Grid) -> None:
         """Replay the solution as human deductions; use the SAT model only where no rule applies."""
-        board = board_state
-        n = board.size
-        known: dict[Cell, Symbol] = dict(board.givens)
+        from solvers.tango import rules  # rules imports this module's types
+
+        n = board_state.size
+        known: dict[Cell, Symbol] = dict(board_state.givens)
         for cell, symbol in sorted(known.items()):
             self.explainer.add("Given", f"Cell {cell} starts as {symbol.value}", cell)
         while len(known) < n * n:
-            deduction = _next_deduction(board, known)
+            deduction = rules.next_deduction(board_state, known)
             if deduction is None:
                 cell = min((r, c) for r in range(n) for c in range(n) if (r, c) not in known)
                 deduction = (cell, solution[cell[0]][cell[1]], "SAT", "the SAT model fixes it; no single rule applies")
             cell, symbol, rule, reason = deduction
             known[cell] = symbol
             self.explainer.add(rule, f"Cell {cell} must be {symbol.value} because {reason}", cell)
-
-
-def _next_deduction(board: TangoBoard, known: dict[Cell, Symbol]) -> tuple[Cell, Symbol, str, str] | None:
-    n = board.size
-    for constraint in board.constraints:
-        for src, dst in ((constraint.a, constraint.b), (constraint.b, constraint.a)):
-            if src in known and dst not in known:
-                symbol = known[src] if constraint.relation is Relation.EQUAL else known[src].other
-                return dst, symbol, "Relation", f"of the '{constraint.relation.value}' sign with {src}"
-    lines = [[(i, j) for j in range(n)] for i in range(n)] + [[(j, i) for j in range(n)] for i in range(n)]
-    for line in lines:
-        for k in range(n - 2):
-            a, b, c = line[k : k + 3]
-            for x, y, target in ((a, b, c), (b, c, a), (a, c, b)):
-                if x in known and y in known and target not in known and known[x] == known[y]:
-                    return target, known[x].other, "No Three", f"{x} and {y} are both {known[x].value}"
-        for symbol in Symbol:
-            if sum(known.get(cell) == symbol for cell in line) == n // 2:
-                for cell in line:
-                    if cell not in known:
-                        return cell, symbol.other, "Balance", f"its line already holds {n // 2} {symbol.value}s"
-    return None
 
 
 def is_valid_solution(board: TangoBoard, grid: Grid) -> bool:

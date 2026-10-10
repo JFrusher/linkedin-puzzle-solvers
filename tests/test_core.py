@@ -1,6 +1,10 @@
 """Core framework: profiler, explainer, grid rectification and the CLI/REST surface."""
 
+import http.client
 import json
+import threading
+from collections.abc import Iterator
+from http.server import HTTPServer
 
 import numpy as np
 import pytest
@@ -9,7 +13,7 @@ from bench.synthetic import generate_queens, render_queens
 from core.explainer import Explainer
 from core.solver_base import BaseSolver
 from core.vision_base import BaseVisionParser, GridNotFoundError
-from main import build_parser, to_jsonable
+from main import SolveHandler, build_parser, to_jsonable
 from solvers.queens.vision import QueensVisionParser
 from solvers.tango.solver import Symbol
 
@@ -57,3 +61,39 @@ def test_cli_parses_commands() -> None:
     assert parser.parse_args(["benchmark", "--game", "all"]).repeats == 25
     with pytest.raises(SystemExit):
         parser.parse_args(["solve", "--game", "pinpoint", "--image", "x.png"])
+
+
+@pytest.fixture
+def server() -> Iterator[str]:
+    httpd = HTTPServer(("127.0.0.1", 0), SolveHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    yield f"127.0.0.1:{httpd.server_address[1]}"
+    httpd.shutdown()
+    httpd.server_close()
+
+
+def _post(address: str, body: bytes, headers: dict[str, str]) -> tuple[int, dict]:
+    connection = http.client.HTTPConnection(address, timeout=10)
+    connection.putrequest("POST", "/pinpoint")
+    for name, value in headers.items():
+        connection.putheader(name, value)
+    connection.endheaders()
+    connection.send(body)
+    response = connection.getresponse()
+    return response.status, json.loads(response.read())
+
+
+def test_server_rejects_non_json_content_type(server: str) -> None:
+    status, payload = _post(server, b'{"clues": []}', {"Content-Type": "text/plain", "Content-Length": "13"})
+    assert status == 415 and "application/json" in payload["error"]
+
+
+def test_server_answers_bad_content_length(server: str) -> None:
+    status, payload = _post(server, b"", {"Content-Type": "application/json", "Content-Length": "abc"})
+    assert status == 400 and payload["error"].startswith("ValueError")
+
+
+def test_server_rejects_non_object_body(server: str) -> None:
+    status, _ = _post(server, b"[]", {"Content-Type": "application/json", "Content-Length": "2"})
+    assert status == 400

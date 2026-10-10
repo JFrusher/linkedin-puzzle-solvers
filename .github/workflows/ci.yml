@@ -1,7 +1,9 @@
 name: CI
 
 on:
+  # Pull requests cover feature branches; pushing to main covers merges. Both on every push ran CI twice.
   push:
+    branches: [main]
   pull_request:
 
 permissions:

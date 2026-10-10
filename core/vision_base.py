@@ -67,6 +67,27 @@ def read_sentence(image: np.ndarray) -> str:
     return " ".join(text for box, text, _ in sorted(results, key=lambda result: result[0][0][0]))
 
 
+def inner_ink(ink: np.ndarray) -> np.ndarray:
+    """Ink mask minus every blob that touches the crop edge: those are grid lines running through it."""
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(ink.astype(np.uint8))
+    h, w = ink.shape
+    left, top = stats[:, cv2.CC_STAT_LEFT], stats[:, cv2.CC_STAT_TOP]
+    right, bottom = left + stats[:, cv2.CC_STAT_WIDTH], top + stats[:, cv2.CC_STAT_HEIGHT]
+    inner = [i for i in range(1, count) if left[i] > 0 and top[i] > 0 and right[i] < w and bottom[i] < h]
+    return np.isin(labels, inner)
+
+
+GLYPH_PAD = 6
+"""White border around a tight glyph crop."""
+
+
+def tight_crop(image: np.ndarray, ink: np.ndarray) -> np.ndarray:
+    """Crop to the ink plus a white border: a loose crop makes the recognizer invent extra glyphs."""
+    ys, xs = np.nonzero(ink)
+    crop = image[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
+    return cv2.copyMakeBorder(crop, *[GLYPH_PAD] * 4, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+
+
 def order_corners(points: np.ndarray) -> np.ndarray:
     """Order four points as top-left, top-right, bottom-right, bottom-left."""
     pts = points.reshape(4, 2).astype(np.float32)

@@ -1,7 +1,7 @@
 """Crossclimb vision: letter-box rows give the word length, EasyOCR reads each row's clue.
 
-Layout assumption: each rung is one row of empty letter boxes with its clue
-text printed to the left of the boxes.
+Layout assumption: each rung is one row of empty letter boxes with its clue text printed to the left of
+the boxes. The first and last rows are the top and bottom words, which share one clue.
 """
 
 from __future__ import annotations
@@ -27,7 +27,11 @@ class RungRow:
 class CrossclimbVisionParser(BaseVisionParser[CrossclimbBoard, list[Rung]]):
     def parse(self, image: np.ndarray) -> CrossclimbBoard:
         rows = self.detect_rows(image)
-        return CrossclimbBoard(clues=tuple(row.clue for row in rows), word_length=len(rows[0].boxes))
+        if len(rows) < 4:
+            raise ValueError(f"expected a top row, at least two middle rows and a bottom row, found {len(rows)} rows")
+        return CrossclimbBoard(
+            clues=tuple(row.clue for row in rows[1:-1]), end_clue=rows[0].clue, word_length=len(rows[0].boxes)
+        )
 
     def detect_rows(self, image: np.ndarray) -> list[RungRow]:
         """Find the letter-box rows top to bottom and read the clue line left of each."""
@@ -68,11 +72,14 @@ class CrossclimbVisionParser(BaseVisionParser[CrossclimbBoard, list[Rung]]):
         """Write each answer into its row's boxes and tag the row with its ladder position."""
         rows = self.detect_rows(image)
         layer = np.zeros((*image.shape[:2], 4), dtype=np.uint8)
-        position = {rung.clue: (index + 1, rung.word) for index, rung in enumerate(solution)}
-        for row in rows:
-            rank, word = position[row.clue]
+        # Middle rows are matched by clue; the top and bottom rows by position, since they share a clue.
+        middle = {rung.clue: (index + 1, rung.word) for index, rung in enumerate(solution[1:-1], start=1)}
+        placements = (
+            [(1, solution[0].word)] + [middle[row.clue] for row in rows[1:-1]] + [(len(solution), solution[-1].word)]
+        )
+        for row, (rank, word) in zip(rows, placements, strict=True):
             for (x, y, w, h), letter in zip(row.boxes, word):
                 visualizer.draw_label(layer, letter, (x + w // 2, y + h // 2), h / 40, visualizer.PATH)
-            x, y, w, h = row.boxes[-1]
-            visualizer.draw_label(layer, f"#{rank}", (x + w + w, y + h // 2), h / 50, visualizer.GOLD)
+            x, y, w, h = row.boxes[0]
+            visualizer.draw_label(layer, f"#{rank}", (x - w // 2 - 4, y + h // 2), h / 60, visualizer.GOLD)
         return layer
