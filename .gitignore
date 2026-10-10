@@ -5,3 +5,5 @@ __pycache__/
 .venv/
 *_solved.png
 bench-results/
+.coverage
+.hypothesis/
