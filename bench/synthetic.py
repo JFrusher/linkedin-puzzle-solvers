@@ -9,16 +9,17 @@ from __future__ import annotations
 
 import random
 from collections import deque
+from itertools import islice
 
 import cv2
 import numpy as np
 
 from core import visualizer
 from solvers.crossclimb.solver import CrossclimbBoard
-from solvers.queens.solver import Cell, QueensBoard
-from solvers.tango.solver import Constraint, Grid, Relation, Symbol, TangoBoard
+from solvers.queens.solver import Cell, QueensBoard, QueensSolver
+from solvers.tango.solver import Constraint, Grid, Relation, Symbol, TangoBoard, TangoSolver
 from solvers.wend.solver import WendBoard
-from solvers.zip.solver import ZipBoard
+from solvers.zip.solver import ZipBoard, ZipSolver
 
 CELL = 80
 MARGIN = 60
@@ -43,7 +44,12 @@ REGION_COLORS = (
 
 
 def generate_queens(n: int, seed: int) -> tuple[QueensBoard, list[Cell]]:
-    """Random non-touching crown placement, then regions grown from each crown by random BFS."""
+    """Random non-touching crown placement, regions grown from each crown, then reshaped until unique.
+
+    Real boards have exactly one answer. Region edges are flipped one cell at a time (never a true crown
+    cell, never splitting a region) and a flip is kept when the answer count does not rise. Cells that
+    hold crowns in other answers are tried first, since moving them breaks those answers.
+    """
     rng = random.Random(seed)
     columns: list[int] = []
 
@@ -74,11 +80,75 @@ def generate_queens(n: int, seed: int) -> tuple[QueensBoard, list[Cell]]:
             nr, nc = rng.choice(free)
             regions[nr][nc] = regions[r][c]
             frontier += [(r, c), (nr, nc)]
-    return QueensBoard(tuple(tuple(row) for row in regions)), list(enumerate(columns))
+    truth = list(enumerate(columns))
+    return _make_unique(regions, truth, rng), truth
 
 
-def generate_zip(n: int, seed: int, checkpoints: int = 8, walls: int = 6) -> tuple[ZipBoard, list[Cell]]:
-    """Randomise a serpentine Hamiltonian path with backbite moves, then add checkpoints and walls."""
+def _make_unique(regions: list[list[int]], truth: list[Cell], rng: random.Random, cap: int = 20) -> QueensBoard:
+    n = len(regions)
+    crowns = set(truth)
+
+    def answers() -> list[list[Cell]]:
+        return list(islice(QueensSolver().solutions(QueensBoard(tuple(tuple(row) for row in regions))), cap))
+
+    def flips(cells: list[Cell]) -> list[tuple[list[Cell], int]]:
+        """Moves that hand a cell, plus any piece of its region that would break off, to a neighbour region."""
+        moves = []
+        for r, c in cells:
+            own = regions[r][c]
+            rest = {(i, j) for i in range(n) for j in range(n) if regions[i][j] == own and (i, j) != (r, c)}
+            keep = _component(rest, truth[own])  # the piece holding this region's true crown stays
+            moved = [(r, c), *sorted(rest - keep)]
+            foreign = {
+                regions[nr][nc]
+                for i, j in moved
+                for nr, nc in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1))
+                if 0 <= nr < n and 0 <= nc < n and regions[nr][nc] != own
+            }
+            moves += [(moved, region) for region in foreign]
+        return moves
+
+    found = answers()
+    for _ in range(n * n * 20):
+        if len(found) == 1:
+            return QueensBoard(tuple(tuple(row) for row in regions))
+        targets = {cell for answer in found for cell in answer} - crowns
+        anywhere = [(r, c) for r in range(n) for c in range(n) if (r, c) not in crowns]
+        # Mostly break other answers directly; sometimes reshape anywhere so stuck targets become movable.
+        moves = (rng.random() < 0.7 and flips(sorted(targets))) or flips(anywhere)
+        moved, region = rng.choice(moves)
+        previous = regions[moved[0][0]][moved[0][1]]
+        for r, c in moved:
+            regions[r][c] = region
+        candidate = answers()
+        if len(candidate) <= len(found):
+            found = candidate
+        else:
+            for r, c in moved:
+                regions[r][c] = previous
+    raise ValueError("could not reshape regions into a one-answer board; try another seed")
+
+
+def _component(cells: set[Cell], start: Cell) -> set[Cell]:
+    """The 4-connected part of ``cells`` that contains ``start``."""
+    seen = {start}
+    stack = [start]
+    while stack:
+        r, c = stack.pop()
+        for nb in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
+            if nb in cells and nb not in seen:
+                seen.add(nb)
+                stack.append(nb)
+    return seen
+
+
+def generate_zip(n: int, seed: int, checkpoints: int = 6, walls: int = 2) -> tuple[ZipBoard, list[Cell]]:
+    """Randomise a serpentine Hamiltonian path with backbite moves, add checkpoints and walls, then more
+    clues until the path is the only answer.
+
+    While a second path exists, either wall off an edge it uses that the true path does not (always breaks
+    it) or promote a cell it reaches at a different step into a checkpoint.
+    """
     rng = random.Random(seed)
     path: list[Cell] = [(r, c if r % 2 == 0 else n - 1 - c) for r in range(n) for c in range(n)]
     for _ in range(n * n * 20):
@@ -91,20 +161,34 @@ def generate_zip(n: int, seed: int, checkpoints: int = 8, walls: int = 6) -> tup
         if k != len(path) - 2:
             path[k + 1 :] = reversed(path[k + 1 :])
     stride = (len(path) - 1) / (checkpoints - 1)
-    marks = tuple(path[round(i * stride)] for i in range(checkpoints))
-    consecutive = {frozenset(pair) for pair in zip(path, path[1:])}
+    marks = {path[round(i * stride)] for i in range(checkpoints)}
+    used = {frozenset(pair) for pair in zip(path, path[1:])}
     candidates = [
         frozenset({(r, c), (r + dr, c + dc)})
         for r in range(n)
         for c in range(n)
         for dr, dc in ((0, 1), (1, 0))
-        if r + dr < n and c + dc < n and frozenset({(r, c), (r + dr, c + dc)}) not in consecutive
+        if r + dr < n and c + dc < n and frozenset({(r, c), (r + dr, c + dc)}) not in used
     ]
-    return ZipBoard(n, marks, frozenset(rng.sample(candidates, min(walls, len(candidates))))), path
+    blocked = set(rng.sample(candidates, min(walls, len(candidates))))
+    while True:
+        board = ZipBoard(n, tuple(sorted(marks, key=path.index)), frozenset(blocked))
+        other = next((p for p in islice(ZipSolver().solutions(board), 2) if p != path), None)
+        if other is None:
+            return board, path
+        shifted = [cell for cell in path if other.index(cell) != path.index(cell) and cell not in marks]
+        if shifted and rng.random() < 0.5:
+            marks.add(rng.choice(shifted))
+        else:
+            blocked.add(rng.choice(sorted({frozenset(pair) for pair in zip(other, other[1:])} - used, key=sorted)))
 
 
-def generate_tango(n: int, seed: int, givens: int = 8, signs: int = 6) -> tuple[TangoBoard, Grid]:
-    """Random valid filled grid by backtracking, then reveal some cells and edge relations."""
+def generate_tango(n: int, seed: int, givens: int = 4, signs: int = 4) -> tuple[TangoBoard, Grid]:
+    """Random valid filled grid, a few revealed cells and signs, then more clues until the answer is unique.
+
+    While a second answer exists, pick a cell where it differs from the truth and either reveal that cell
+    or add the sign on an edge whose two cells it gets wrong in different ways.
+    """
     rng = random.Random(seed)
     grid: list[list[Symbol | None]] = [[None] * n for _ in range(n)]
 
@@ -134,11 +218,25 @@ def generate_tango(n: int, seed: int, givens: int = 8, signs: int = 6) -> tuple[
     cells = [(r, c) for r in range(n) for c in range(n)]
     shown = {cell: solution[cell[0]][cell[1]] for cell in rng.sample(cells, givens)}
     edges = [((r, c), (r + dr, c + dc)) for r, c in cells for dr, dc in ((0, 1), (1, 0)) if r + dr < n and c + dc < n]
-    constraints = tuple(
-        Constraint(a, b, Relation.EQUAL if solution[a[0]][a[1]] == solution[b[0]][b[1]] else Relation.OPPOSITE)
-        for a, b in rng.sample(edges, signs)
-    )
-    return TangoBoard(n, shown, constraints), solution
+
+    def sign(a: Cell, b: Cell) -> Constraint:
+        same = solution[a[0]][a[1]] == solution[b[0]][b[1]]
+        return Constraint(a, b, Relation.EQUAL if same else Relation.OPPOSITE)
+
+    constraints = [sign(a, b) for a, b in rng.sample(edges, signs)]
+    while True:
+        board = TangoBoard(n, dict(shown), tuple(constraints))
+        other = next((g for g in islice(TangoSolver().solutions(board), 2) if g != solution), None)
+        if other is None:
+            return board, solution
+        wrong = {(r, c) for r, c in cells if other[r][c] != solution[r][c]}
+        # An edge with exactly one wrong end has the opposite relation in the other answer, so its sign breaks it.
+        breaking = [(a, b) for a, b in edges if (a in wrong) != (b in wrong)]
+        if breaking and rng.random() < 0.5:
+            constraints.append(sign(*rng.choice(breaking)))
+        else:
+            r, c = rng.choice(sorted(wrong))
+            shown[(r, c)] = solution[r][c]
 
 
 WEND_SAMPLE = WendBoard(

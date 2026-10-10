@@ -1,5 +1,7 @@
 """Queens: DLX exact cover, explanations and K-Means region vision."""
 
+from itertools import islice
+
 import numpy as np
 import pytest
 
@@ -56,3 +58,10 @@ def test_overlay_matches_image_and_draws_crowns() -> None:
     assert layer.shape == (*image.shape[:2], 4)
     assert np.count_nonzero(layer[..., 3]) > 0
     assert parser.generate_overlay(image, board, QueensSolver().solve(board)).shape == image.shape
+
+
+@pytest.mark.parametrize("n", [6, 8, 10])
+def test_generator_makes_one_answer_boards(n: int) -> None:
+    board, truth = generate_queens(n, seed=n + 100)
+    assert regions_contiguous(board)
+    assert list(islice(QueensSolver().solutions(board), 2)) == [truth]

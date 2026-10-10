@@ -16,6 +16,7 @@ next checkpoint. Infeasible states are pruned before they enter the queue:
 from __future__ import annotations
 
 import heapq
+from collections.abc import Iterator
 from dataclasses import dataclass
 from itertools import count
 
@@ -67,6 +68,13 @@ class ZipSolver(BaseSolver[ZipBoard, list[Cell]]):
     name = "zip"
 
     def solve(self, board_state: ZipBoard) -> list[Cell]:
+        path = next(self.solutions(board_state), None)
+        if path is None:
+            raise UnsolvableError("no path visits every cell once with the checkpoints in order")
+        return path
+
+    def solutions(self, board_state: ZipBoard) -> Iterator[list[Cell]]:
+        """Yield every valid path in A* order; take two to test uniqueness."""
         n = board_state.size
         total = n * n
         adjacency = [[r2 * n + c2 for r2, c2 in board_state.neighbours(divmod(index, n))] for index in range(total)]
@@ -123,7 +131,8 @@ class ZipSolver(BaseSolver[ZipBoard, list[Cell]]):
             *_, state = heapq.heappop(frontier)
             self.nodes_expanded += 1
             if state.visited == full:
-                return self._reconstruct(state, n, board_state)
+                yield self._path(state, n)
+                continue
             if state.head == end:
                 continue
             for nb in adjacency[state.head]:
@@ -145,16 +154,19 @@ class ZipSolver(BaseSolver[ZipBoard, list[Cell]]):
                 )
                 h, d = heuristic(child)
                 heapq.heappush(frontier, (child.g + h, -child.g, d, next(tie), child))
-        raise UnsolvableError("no path visits every cell once with the checkpoints in order")
 
-    def _reconstruct(self, state: _State, n: int, board: ZipBoard) -> list[Cell]:
+    @staticmethod
+    def _path(state: _State, n: int) -> list[Cell]:
         indices: list[int] = []
         node: _State | None = state
         while node is not None:
             indices.append(node.head)
             node = node.parent
-        path = [divmod(index, n) for index in reversed(indices)]
-        labels = {cell: i + 1 for i, cell in enumerate(board.checkpoints)}
+        return [divmod(index, n) for index in reversed(indices)]
+
+    def explain(self, board_state: ZipBoard, solution: list[Cell]) -> None:
+        path = solution
+        labels = {cell: i + 1 for i, cell in enumerate(board_state.checkpoints)}
         self.explainer.add("Start", f"Begin on checkpoint 1 at {path[0]}", path[0])
         moves_since = 0
         for cell in path[1:]:
@@ -167,7 +179,6 @@ class ZipSolver(BaseSolver[ZipBoard, list[Cell]]):
                     cell,
                 )
                 moves_since = 0
-        return path
 
 
 def is_valid_solution(board: ZipBoard, path: list[Cell]) -> bool:

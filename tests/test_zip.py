@@ -1,5 +1,7 @@
 """Zip: A* Hamiltonian path search, wall/checkpoint vision."""
 
+from itertools import islice
+
 import pytest
 
 from bench.synthetic import generate_zip, render_zip
@@ -39,3 +41,9 @@ def test_board_validation() -> None:
 def test_vision_reads_checkpoints_and_walls(n: int, seed: int) -> None:
     board, _ = generate_zip(n, seed)
     assert ZipVisionParser().parse(render_zip(board, seed)) == board
+
+
+@pytest.mark.parametrize("n", [5, 6])
+def test_generator_makes_one_answer_boards(n: int) -> None:
+    board, truth = generate_zip(n, seed=n + 100)
+    assert list(islice(ZipSolver().solutions(board), 2)) == [truth]

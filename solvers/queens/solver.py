@@ -153,6 +153,13 @@ class QueensSolver(BaseSolver[QueensBoard, list[Cell]]):
     name = "queens"
 
     def solve(self, board_state: QueensBoard) -> list[Cell]:
+        solution = next(self.solutions(board_state), None)
+        if solution is None:
+            raise UnsolvableError("no crown placement satisfies the row, column, region and adjacency rules")
+        return solution
+
+    def solutions(self, board_state: QueensBoard) -> Iterator[list[Cell]]:
+        """Yield every valid crown placement; take the first two to test uniqueness."""
         n = board_state.size
         # Column ids: rows 0..n-1, columns n..2n-1, regions 2n..3n-1, then the (n-1)^2 secondary 2x2 windows.
         links = DancingLinks(primary=3 * n, secondary=(n - 1) ** 2)
@@ -165,11 +172,10 @@ class QueensSolver(BaseSolver[QueensBoard, list[Cell]]):
                     if 0 <= wr < n - 1 and 0 <= wc < n - 1
                 ]
                 links.add_row(r * n + c, [r, n + c, 2 * n + board_state.regions[r][c], *windows])
-        solution = next(links.search(), None)
+        for solution in links.search():
+            self.nodes_expanded = links.nodes_expanded
+            yield sorted(divmod(row_id, n) for row_id in solution)
         self.nodes_expanded = links.nodes_expanded
-        if solution is None:
-            raise UnsolvableError("no crown placement satisfies the row, column, region and adjacency rules")
-        return sorted(divmod(row_id, n) for row_id in solution)
 
     def explain(self, board_state: QueensBoard, solution: list[Cell]) -> None:
         """Replay the solution as human deductions: forced placements first, search choices otherwise."""

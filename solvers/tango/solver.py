@@ -10,7 +10,7 @@ Variable ``x(r, c)`` is true iff cell (r, c) holds a Sun. CNF encoding:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -69,6 +69,13 @@ class TangoSolver(BaseSolver[TangoBoard, Grid]):
     name = "tango"
 
     def solve(self, board_state: TangoBoard) -> Grid:
+        solution = next(self.solutions(board_state), None)
+        if solution is None:
+            raise UnsolvableError("the Tango CNF is unsatisfiable")
+        return solution
+
+    def solutions(self, board_state: TangoBoard) -> Iterator[Grid]:
+        """Yield every valid grid, blocking each model once found; take two to test uniqueness."""
         n = board_state.size
 
         def var(cell: Cell) -> int:
@@ -98,12 +105,13 @@ class TangoSolver(BaseSolver[TangoBoard, Grid]):
             top = max(top, encoding.nv)
             clauses += encoding.clauses
 
+        cells = [(r, c) for r in range(n) for c in range(n)]
         with Minisat22(bootstrap_with=clauses) as sat:
-            if not sat.solve():
-                raise UnsolvableError("the Tango CNF is unsatisfiable")
-            model = set(lit for lit in sat.get_model() if lit > 0)
-            self.nodes_expanded = int(sat.accum_stats()["decisions"])
-        return [[Symbol.SUN if var((r, c)) in model else Symbol.MOON for c in range(n)] for r in range(n)]
+            while sat.solve():
+                model = set(lit for lit in sat.get_model() if lit > 0)
+                self.nodes_expanded = int(sat.accum_stats()["decisions"])
+                yield [[Symbol.SUN if var((r, c)) in model else Symbol.MOON for c in range(n)] for r in range(n)]
+                sat.add_clause([-var(cell) if var(cell) in model else var(cell) for cell in cells])
 
     def explain(self, board_state: TangoBoard, solution: Grid) -> None:
         """Replay the solution as human deductions; use the SAT model only where no rule applies."""

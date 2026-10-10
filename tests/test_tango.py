@@ -1,5 +1,7 @@
 """Tango: PySAT CNF encoding, rule explanations and template-matching vision."""
 
+from itertools import islice
+
 import pytest
 
 from bench.synthetic import generate_tango, render_tango
@@ -41,3 +43,9 @@ def test_vision_reads_symbols_and_signs(seed: int) -> None:
     parsed = TangoVisionParser().parse(render_tango(board, seed))
     assert dict(parsed.givens) == dict(board.givens)
     assert set(parsed.constraints) == set(board.constraints)
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_generator_makes_one_answer_boards(seed: int) -> None:
+    board, truth = generate_tango(6, seed + 100)
+    assert list(islice(TangoSolver().solutions(board), 2)) == [truth]

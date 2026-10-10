@@ -14,13 +14,23 @@ the logic.
 2. **Baseline.** Record the share of Search/SAT steps, the nodes expanded and the median µs per game.
 3. **One rule at a time.** Measure each rule against the baseline, and keep it only if the numbers improve.
 
-## Baseline (current generators, so several answers are possible; to be re-measured on one-answer boards)
+## Baseline (one-answer boards, `python -m bench.deduction_report`, 20 seeds per size)
 
-| Game | Metric | Value |
-|---|---|---|
-| Queens 7×7–10×10 | explain steps labelled `Search` | 54% → 72% |
-| Tango 6×6 | explain steps labelled `SAT` | 16% |
-| Zip 8×8 | latency over 5 seeds | 4 ms → 103 ms (nodes 64 → 2,247) |
+| Game | Size | Metric | Value |
+|---|---|---|---|
+| Queens | 7x7 | `Search` steps | 18% |
+| Queens | 8x8 | `Search` steps | 26% |
+| Queens | 9x9 | `Search` steps | 25% |
+| Queens | 10x10 | `Search` steps | 18% |
+| Tango | 6x6 | `SAT` steps | 5% |
+| Zip | 5x5 | nodes median / max · µs median / max | 32 / 55 · 743 / 1,269 |
+| Zip | 6x6 | nodes median / max · µs median / max | 44 / 109 · 1,380 / 3,802 |
+| Zip | 7x7 | nodes median / max · µs median / max | 116 / 671 · 5,632 / 36,063 |
+
+Before the generators made one-answer boards, Queens showed 54–72% `Search` steps and Tango 16% `SAT`
+steps. Most of that came from boards with several answers, not from missing rules. Proving that a Zip
+8×8 board has one answer takes about 9 s, because the search must exhaust every path; this is the clearest
+sign that Zip pruning is weak.
 
 ## Rules by game
 
