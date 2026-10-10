@@ -89,7 +89,11 @@ def typed_page(name: str) -> None:
         "wend": "One row of letters per line, # for a wall; optionally a last line of word lengths.",
         "crossclimb": "The word length, then the clue shared by the top and bottom words, then the middle clues.",
     }[name]
-    text = st.text_area("Board", example, height=260, help=help_text)
+    with st.form(f"typed-{name}"):
+        text = st.text_area("Board", example, height=260, help=help_text)
+        submitted = st.form_submit_button("Solve", type="primary")
+    if not submitted:
+        return
     try:
         board = game.text(text)
         result = game.solver().run(board)

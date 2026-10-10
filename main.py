@@ -116,7 +116,10 @@ def cmd_solve(args: argparse.Namespace) -> int:
         raise ValueError("--slots goes with --image; type the word lengths on the board's last line instead")
     if args.text:
         return _print_outcome(
-            args, solve_text(args.game, sys.stdin.read() if args.text == "-" else Path(args.text).read_text())
+            args,
+            solve_text(
+                args.game, sys.stdin.read() if args.text == "-" else Path(args.text).read_text(encoding="utf-8")
+            ),
         )
     image = BaseVisionParser.load_image(args.image)
     slots = BaseVisionParser.load_image(args.slots) if args.slots else None

@@ -72,6 +72,9 @@ def test_vision_reads_areas_and_shapes(n: int, seed: int) -> None:
 def test_try_and_fail_is_sound_and_leaves_no_search(seed: int) -> None:
     board, truth = generate_patches(6, seed)
     steps = PatchesSolver().run(board).explanation.steps
-    true_patches = {f"clue {p.clue.label} at {p.clue.cell} cannot take the {p.height}x{p.width} patch" for p in truth}
+    true_patches = {
+        f"clue {p.clue.label} at {p.clue.cell} cannot take the {p.height}x{p.width} patch at ({p.top}, {p.left}):"
+        for p in truth
+    }
     assert not any(s.message.startswith(tuple(true_patches)) for s in steps if s.rule == "Try and Fail")
     assert all(s.rule != "Search" for s in steps)

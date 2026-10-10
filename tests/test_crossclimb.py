@@ -82,5 +82,8 @@ def test_overlay_places_rows_by_position_without_a_second_ocr_pass(monkeypatch: 
     ladder = [Rung(board.end_clue, CROSSCLIMB_ANSWER[0], 1.0)]
     ladder += [Rung("same clue", word, 1.0) for word in CROSSCLIMB_ANSWER[1:-1]]
     ladder += [Rung(board.end_clue, CROSSCLIMB_ANSWER[-1], 1.0)]
-    layer = CrossclimbVisionParser().overlay_layer(render_crossclimb(CROSSCLIMB_SAMPLE), board, ladder)
-    assert layer[..., 3].any()
+    drawn: list[str] = []
+    monkeypatch.setattr("core.visualizer.draw_label", lambda _canvas, text, *_args: drawn.append(text))
+    CrossclimbVisionParser().overlay_layer(render_crossclimb(CROSSCLIMB_SAMPLE), board, ladder)
+    # Rows top to bottom: each row's letters, then its ladder rank.
+    assert "".join(drawn) == "".join(f"{word}#{rank}" for rank, word in enumerate(CROSSCLIMB_ANSWER, start=1))
