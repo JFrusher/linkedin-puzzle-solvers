@@ -28,7 +28,7 @@ onto the original image.
 ## Quick start
 
 ```bash
-pip install torch --index-url https://download.pytorch.org/whl/cpu   # CPU build, ~2 GB smaller
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu   # CPU build, ~2 GB smaller
 pip install -r requirements.txt
 python -m nltk.downloader wordnet
 
