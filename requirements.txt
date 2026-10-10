@@ -1,0 +1,19 @@
+# Computer vision
+opencv-python-headless>=4.9
+numpy>=1.26
+scikit-learn>=1.4
+easyocr>=1.7.1
+
+# Solvers and NLP
+python-sat>=1.8.dev13
+sentence-transformers>=2.7
+nltk>=3.8
+
+# Interfaces
+rich>=13.7
+streamlit>=1.35
+pandas>=2.2
+
+# Development
+pytest>=8.0
+ruff>=0.6
