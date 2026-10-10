@@ -245,6 +245,31 @@ The extension does not rely on LinkedIn's DOM class names. It runs the same visi
 | Patches | Exact cover: N² cell items + one item per clue; rows are rectangles that fit the clue's area and/or shape and hold no other clue | O(rectangles^{clues}) | MRV column choice; tens of nodes |
 | Wend | Trie DFS enumerates word paths; exact tiling over tiles with MRV; islands must be subset-sum fillable | O(placements^{words}) | Trie prunes dead prefixes; flood-fill rejects untileable islands |
 
+### Rust twin of Dancing Links
+
+`rust/dlx/` is a Rust port of `core/dlx.py` (PyO3), with the same API and the same search order:
+minimum-remaining-values column, first column wins ties, rows top to bottom. `tests/test_dlx_rust.py` checks
+that the two engines yield the same covers in the same order with the same node count, on 300 random matrices
+and through the real Queens and Patches solvers. The solvers stay on the Python engine, so installing needs no
+Rust toolchain; the Rust one shows what the same algorithm costs without Python's object overhead.
+
+Building the matrix and searching to exhaustion (`pip install ./rust/dlx && python -m bench.dlx_speed`):
+
+| Case | Covers | Nodes | Python | Rust | Speed-up |
+|---|---:|---:|---:|---:|---:|
+| LinkedIn Queens 8×8 | 1 | 9 | 0.20 ms | 0.015 ms | 13× |
+| LinkedIn Queens 12×12 | 1 | 25 | 0.73 ms | 0.041 ms | 18× |
+| LinkedIn Queens, real screenshot | 1 | 112 | 1.31 ms | 0.046 ms | 28× |
+| Patches, real screenshot | 1 | 16 | 0.35 ms | 0.023 ms | 15× |
+| Classic 8-queens, all answers | 92 | 1,198 | 4.78 ms | 0.169 ms | 28× |
+| Classic 10-queens, all answers | 724 | 16,447 | 68.38 ms | 1.995 ms | 34× |
+| Classic 12-queens, all answers | 14,200 | 327,812 | 1,383 ms | 52.4 ms | 26× |
+
+Both engines expand exactly the same nodes, so the ratio is engine speed alone. The answer counts for classic
+N-queens (92, 724, 14,200) match the known values, an independent check on both. The Rust search keeps nodes
+in flat index arrays and uses an explicit stack instead of recursion, which is also what lets it yield covers
+lazily like the Python generator.
+
 ### Measured performance
 
 Below is the median of 25 solves without memory tracing, plus one traced run for peak memory. It was run on a
@@ -313,6 +338,7 @@ only when no single rule forces the move.
 ## Repository layout
 
 ```text
+rust/dlx/      Rust twin of core/dlx.py (PyO3), checked equal by tests, benchmarked by bench/dlx_speed.py
 core/          vision_base · solver_base · explainer · visualizer · dlx · nlp (SBERT + WordNet)
 solvers/       queens · zip · tango · pinpoint · crossclimb · wend · sudoku · patches  (+ registry in __init__)
 bench/         benchmark_runner · synthetic (seeded generators + skewed renderers) · real (screenshot boards) · gifs
