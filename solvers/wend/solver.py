@@ -14,7 +14,7 @@ from collections import Counter
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
-from core.nlp import dictionary_words
+from core.nlp import word_forms
 from core.solver_base import BaseSolver, UnsolvableError
 
 Cell = tuple[int, int]
@@ -80,7 +80,7 @@ class WendSolver(BaseSolver[WendBoard, list[WordPlacement]]):
 
     def __init__(self, words: Iterable[str] | None = None) -> None:
         super().__init__()
-        self.trie = Trie(dictionary_words(MIN_WORD_LENGTH) if words is None else words)
+        self.trie = Trie(word_forms(MIN_WORD_LENGTH) if words is None else words)
 
     def solve(self, board_state: WendBoard) -> list[WordPlacement]:
         chosen = next(self.solutions(board_state), None)

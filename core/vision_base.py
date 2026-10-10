@@ -77,6 +77,17 @@ def inner_ink(ink: np.ndarray) -> np.ndarray:
     return np.isin(labels, inner)
 
 
+GLYPH_PAD = 6
+"""White border around a tight glyph crop."""
+
+
+def tight_crop(image: np.ndarray, ink: np.ndarray) -> np.ndarray:
+    """Crop to the ink plus a white border: a loose crop makes the recognizer invent extra glyphs."""
+    ys, xs = np.nonzero(ink)
+    crop = image[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
+    return cv2.copyMakeBorder(crop, *[GLYPH_PAD] * 4, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+
+
 def order_corners(points: np.ndarray) -> np.ndarray:
     """Order four points as top-left, top-right, bottom-right, bottom-left."""
     pts = points.reshape(4, 2).astype(np.float32)

@@ -3,7 +3,7 @@
 import pytest
 
 from bench.synthetic import WEND_SAMPLE, generate_wend, render_wend
-from core.nlp import dictionary_words
+from core.nlp import word_forms
 from core.solver_base import UnsolvableError
 from solvers.wend.solver import MIN_WORD_LENGTH, Trie, WendBoard, WendSolver, is_valid_solution
 from solvers.wend.vision import WendVisionParser
@@ -35,7 +35,7 @@ def test_word_lengths_must_cover_board() -> None:
 
 def test_sample_with_wordnet_dictionary() -> None:
     result = WendSolver().run(WEND_SAMPLE)
-    assert is_valid_solution(WEND_SAMPLE, result.solution, dictionary_words(MIN_WORD_LENGTH))
+    assert is_valid_solution(WEND_SAMPLE, result.solution, word_forms(MIN_WORD_LENGTH))
 
 
 def test_vision_reads_letters_walls_and_slots() -> None:

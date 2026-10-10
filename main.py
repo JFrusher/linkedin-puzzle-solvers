@@ -48,13 +48,20 @@ def to_jsonable(value: Any) -> Any:
     return value
 
 
-def solve_image(game_name: str, image: np.ndarray) -> dict[str, Any]:
-    """Parse, solve and render one screenshot; returns a JSON-ready payload plus the overlay layer."""
+def solve_image(game_name: str, image: np.ndarray, slots: np.ndarray | None = None) -> dict[str, Any]:
+    """Parse, solve and render one screenshot; returns a JSON-ready payload plus the overlay layer.
+
+    ``slots`` is a separate screenshot of Wend's word slots, for when they are not in ``image``.
+    """
     game = get_game(game_name)
     if game.parser is None:
         raise ValueError(f"{game_name} has no vision pipeline; use `python main.py stream --game {game_name}`")
+    if slots is not None and game_name != "wend":
+        raise ValueError("a slots screenshot only applies to Wend")
     parser: BaseVisionParser[Any, Any] = game.parser()
     board = parser.parse(image)
+    if slots is not None:
+        board = dataclasses.replace(board, word_lengths=parser.slot_lengths(slots))  # type: ignore[attr-defined]
     result = game.solver().run(board)
     return {
         "game": game_name,
@@ -87,7 +94,8 @@ def decode_image(data: str) -> np.ndarray:
 
 def cmd_solve(args: argparse.Namespace) -> int:
     image = BaseVisionParser.load_image(args.image)
-    outcome = solve_image(args.game, image)
+    slots = BaseVisionParser.load_image(args.slots) if args.slots else None
+    outcome = solve_image(args.game, image, slots)
     output = Path(args.output) if args.output else Path(args.image).with_name(f"{Path(args.image).stem}_solved.png")
     cv2.imwrite(str(output), visualizer.composite(image, outcome["layer"]))
     if args.json:
@@ -208,6 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
     solve = commands.add_parser("solve", help="solve a screenshot and write an overlay image")
     solve.add_argument("--game", required=True, choices=[name for name, game in GAMES.items() if game.parser])
     solve.add_argument("--image", required=True, help="path to the screenshot")
+    solve.add_argument("--slots", help="Wend only: screenshot of the word slots, when they are not in --image")
     solve.add_argument("--output", help="overlay path (default: <image>_solved.png)")
     solve.add_argument("--json", action="store_true", help="print the full result as JSON")
     solve.set_defaults(handler=cmd_solve)
