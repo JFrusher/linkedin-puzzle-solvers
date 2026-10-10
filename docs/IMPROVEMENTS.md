@@ -120,6 +120,20 @@ already obeys this implicitly, because no path can pass through such a tile. In 
 where that tile's only fitting word is placed. Corridor and cut-cell pruning were skipped, because there is
 no speed problem to fix.
 
+### Crossclimb (done)
+
+The real board is a 7-word ladder. Five middle words have their own clues and must be ordered. The top and
+bottom words unlock last and share one clue: together they form a pair or phrase, read in either order.
+Puzzles found online confirm this: TEAM … WORK (teamwork), LIMA … KILO (NATO letters), TOWN … HALL,
+FLIP … FLOP.
+
+The solver orders the middle ladder as before, then scores every pair of words one letter from each end of
+the ladder. Each pair is described in both reading orders: a WordNet compound with its gloss ("teamwork:
+cooperative work done by a team"), or else the plain phrase. The description closest to the shared clue
+wins. TEAM/WORK has only 8 × 9 candidate pairs, so this step is cheap. The sample board is now the
+5 October 2026 puzzle, TEAM-REAM-ROAM-FOAM-FORM-WORM-WORK. The middle ladder and the end pair both rely
+on SBERT, which runs in CI; the pair selection logic is also tested locally with a stand-in encoder.
+
 ## Rules by game
 
 ### Queens

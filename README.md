@@ -16,7 +16,7 @@ onto the original image.
 | **Zip** (Pathfinder) | Hough circles + EasyOCR digits, wall-thickness probes | A* with connectivity and degree pruning |
 | **Tango** (Sun & Moon) | Template matching (cells and edge signs) | CNF reduction solved by MiniSat (PySAT) |
 | **Pinpoint** (Patches) | Text stream | Sentence-BERT moving centroid × WordNet hypernyms |
-| **Crossclimb** (Word Ladder) | Letter-box rows + EasyOCR clues | SBERT clue answering + Hamming-1 ladder search |
+| **Crossclimb** (Word Ladder) | Letter-box rows + EasyOCR clues | SBERT clue answering + Hamming-1 ladder search + shared-clue end pair |
 | **Wend** (Word Partitioning) | Per-tile EasyOCR, wall tiles, slot rows | Trie-guided DFS tiling + flood-fill island pruning |
 
 > 📸 **Demo placeholder:** `docs/demo.gif` — screenshot → overlay round-trip in the browser extension.
@@ -102,7 +102,7 @@ The extension does not rely on LinkedIn's DOM class names. It runs the same visi
 | Zip | Hamiltonian path through ordered checkpoints; A* over (head, visited bitmask, next checkpoint) | O(4^{N²}) states (NP-complete) | f = g + max(unvisited, Manhattan chain) is exact on feasible states. Flood-fill and degree-2 pruning cut dead ends |
 | Tango | SAT: N² vars; sequential-counter cardinality for N/2 per line; (¬a∨¬b∨¬c)∧(a∨b∨c) per triple; ⇔ / ⊕ for signs | O(2^{N²}) | MiniSat CDCL, tens of decisions |
 | Pinpoint | C = (1/K) Σ Embed(clueᵢ); score = cos(C, Embed(h)) × coverage(h) over hypernyms h | O(K · H · d) | H ≈ hundreds of hypernyms, d = 384 |
-| Crossclimb | Top-25 gloss-similar words per clue; branch-and-bound longest-score path in the Hamming-1 graph | O(K! · 25^K) | Bounded by best-remaining-score; sparse graph |
+| Crossclimb | Top-25 gloss-similar words per clue; branch-and-bound best-score path in the Hamming-1 graph; then the top/bottom pair one letter from each end that best fits the shared clue | O(K! · 25^K) | Bounded by best-remaining-score; sparse graph; end pairs are tens of candidates |
 | Wend | Trie DFS enumerates word paths; exact tiling over tiles with MRV; islands must be subset-sum fillable | O(placements^{words}) | Trie prunes dead prefixes; flood-fill rejects untileable islands |
 
 ### Measured performance

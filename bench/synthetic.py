@@ -317,15 +317,17 @@ WEND_SAMPLE = WendBoard(
 
 CROSSCLIMB_SAMPLE = CrossclimbBoard(
     clues=(
-        "having a low temperature",
-        "a line made of twisted fibres or threads",
-        "a rectangular piece of stiff paper used to send messages",
-        "a division of a hospital for a particular group of patients",
-        "having or producing a comfortable degree of heat",
+        "a mass of small bubbles formed on a liquid",
+        "a quantity of paper, 480 or 500 sheets",
+        "a small elongated soft-bodied animal such as an earthworm",
+        "move about aimlessly without any destination",
+        "a category of things distinguished by a common characteristic",
     ),
+    end_clue="cooperative work done by a group acting together",
     word_length=4,
 )
-CROSSCLIMB_ANSWER = ("COLD", "CORD", "CARD", "WARD", "WARM")
+CROSSCLIMB_ANSWER = ("TEAM", "REAM", "ROAM", "FOAM", "FORM", "WORM", "WORK")
+"""LinkedIn Crossclimb, 5 October 2026: the middle clues are shuffled, as in the game."""
 
 PINPOINT_SAMPLES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("pawn", "rook", "knight", "bishop", "queen"), "chessman"),
@@ -453,8 +455,9 @@ def render_wend(board: WendBoard, seed: int = 0) -> np.ndarray:
 def render_crossclimb(board: CrossclimbBoard) -> np.ndarray:
     box, gap, row_height, text_width = 56, 8, 84, 1000
     width = text_width + board.word_length * (box + gap) + 2 * 40
-    image = np.full((len(board.clues) * row_height + 80, width, 3), 250, dtype=np.uint8)
-    for index, clue in enumerate(board.clues):
+    rows = (board.end_clue, *board.clues, board.end_clue)  # top and bottom rows share the end clue
+    image = np.full((len(rows) * row_height + 80, width, 3), 250, dtype=np.uint8)
+    for index, clue in enumerate(rows):
         y = 40 + index * row_height
         cv2.putText(image, clue, (40, y + box // 2 + 7), cv2.FONT_HERSHEY_SIMPLEX, 0.75, INK, 2, cv2.LINE_AA)
         for k in range(board.word_length):

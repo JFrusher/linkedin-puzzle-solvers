@@ -107,9 +107,13 @@ def cases(game: str) -> Iterator[Case]:
             synthetic.render_crossclimb(board),
             lambda parsed: (
                 parsed.word_length == board.word_length
+                and word_recall(parsed.end_clue, board.end_clue) >= 0.8
                 and all(word_recall(p, t) >= 0.8 for p, t in zip(parsed.clues, board.clues))
             ),
-            lambda rungs: is_valid_ladder(board, rungs) and {r.word for r in rungs} == set(synthetic.CROSSCLIMB_ANSWER),
+            lambda rungs: (
+                is_valid_ladder(board, rungs)
+                and tuple(r.word for r in rungs) in (synthetic.CROSSCLIMB_ANSWER, synthetic.CROSSCLIMB_ANSWER[::-1])
+            ),
         )
     elif game == "pinpoint":
         for clues, expected in synthetic.PINPOINT_SAMPLES:
