@@ -7,9 +7,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from solvers.patches.solver import Clue, PatchesBoard
 from solvers.queens.solver import QueensBoard
 from solvers.sudoku.solver import SudokuBoard
 from solvers.tango.solver import Constraint, Relation, Symbol, TangoBoard
+from solvers.wend.solver import WendBoard
 from solvers.zip.solver import ZipBoard
 
 FIXTURES = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "real"
@@ -93,3 +95,41 @@ SUDOKU = SudokuBoard(
         (5, 4): 1, (5, 5): 5,
     }
 )  # fmt: skip
+
+PATCHES = PatchesBoard(
+    8,
+    (
+        Clue((1, 2), 6, "any"),
+        Clue((1, 6), None, "tall"),
+        Clue((2, 1), 6, "any"),
+        Clue((2, 3), 9, "any"),
+        Clue((2, 7), None, "tall"),
+        Clue((3, 6), None, "wide"),
+        Clue((4, 1), None, "square"),
+        Clue((5, 0), None, "wide"),
+        Clue((5, 4), 9, "any"),
+        Clue((5, 6), 4, "any"),
+        Clue((6, 1), None, "square"),
+        Clue((6, 5), 12, "any"),
+    ),
+)
+"""Numbers in '+' badges are areas of any shape; plain coloured icons are shapes of any area."""
+
+WEND = WendBoard(
+    letters=tuple(
+        tuple(None if ch == "#" else ch for ch in row)
+        for row in (
+            "##U#####",
+            "#GPRECT#",
+            "#REIDSIR",
+            "#ADROUG#",
+            "#FTEETH#",
+            "LEOVOLN#",
+            "#DEDAOW#",
+            "#####D##",
+        )
+    ),
+    word_lengths=(6, 7, 8, 9, 10),
+)
+"""Word lengths come from the separate ``wend-slots`` screenshot."""
+WEND_ANSWER = ("DIRECT", "UPGRADE", "LEFTOVER", "RIGHTEOUS", "DOWNLOADED")

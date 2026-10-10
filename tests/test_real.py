@@ -1,10 +1,14 @@
 """Real LinkedIn screenshots: each parser must read its board exactly, and each board must solve."""
 
+from dataclasses import replace
+
 import pytest
 
 from bench import real
 from bench.benchmark_runner import same_partition
+from main import solve_image
 from solvers import get_game
+from solvers.patches.solver import is_valid_solution as patches_valid
 from solvers.queens.solver import is_valid_solution as queens_valid
 from solvers.sudoku.solver import is_valid_solution as sudoku_valid
 from solvers.tango.solver import is_valid_solution as tango_valid
@@ -36,7 +40,27 @@ def test_mini_sudoku() -> None:
     assert sudoku_valid(real.SUDOKU, get_game("mini-sudoku").solver().solve(parsed))
 
 
-@pytest.mark.parametrize("name", ["queens", "tango", "zip", "mini-sudoku"])
+def test_patches() -> None:
+    parsed = get_game("patches").parser().parse(real.image("patches"))
+    assert parsed == real.PATCHES
+    assert patches_valid(real.PATCHES, get_game("patches").solver().solve(parsed))
+
+
+def test_wend() -> None:
+    parser = get_game("wend").parser()
+    parsed = replace(parser.parse(real.image("wend")), word_lengths=parser.slot_lengths(real.image("wend-slots")))
+    assert parsed == real.WEND
+    assert sorted(p.word for p in get_game("wend").solver().solve(parsed)) == sorted(real.WEND_ANSWER)
+
+
+def test_cli_path_takes_wend_slots_from_their_own_screenshot() -> None:
+    outcome = solve_image("wend", real.image("wend"), real.image("wend-slots"))
+    assert sorted(p.word for p in outcome["solution"]) == sorted(real.WEND_ANSWER)
+    with pytest.raises(ValueError, match="only applies to Wend"):
+        solve_image("zip", real.image("zip"), real.image("wend-slots"))
+
+
+@pytest.mark.parametrize("name", ["queens", "tango", "zip", "mini-sudoku", "patches", "wend"])
 def test_overlay_draws_on_the_screenshot(name: str) -> None:
     game = get_game(name)
     picture = real.image(name)

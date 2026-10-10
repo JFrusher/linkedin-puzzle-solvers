@@ -12,8 +12,8 @@ import numpy as np
 from rich.console import Console
 from rich.table import Table
 
-from bench import synthetic
-from core.nlp import dictionary_words
+from bench import real, synthetic
+from core.nlp import word_forms
 from solvers import GAMES, get_game
 from solvers.crossclimb.solver import is_valid_ladder
 from solvers.patches.solver import is_valid_solution as patches_valid
@@ -99,7 +99,7 @@ def cases(game: str) -> Iterator[Case]:
             board,
             synthetic.render_wend(board),
             lambda parsed: parsed == board,
-            lambda solution: wend_valid(board, solution, dictionary_words(MIN_WORD_LENGTH)),
+            lambda solution: wend_valid(board, solution, word_forms(MIN_WORD_LENGTH)),
         )
     elif game == "crossclimb":
         board = synthetic.CROSSCLIMB_SAMPLE
@@ -148,6 +148,43 @@ def cases(game: str) -> Iterator[Case]:
             )
     else:
         raise KeyError(f"no benchmark cases for {game!r}")
+    if game in REAL_CHECKS:
+        board, parsed_ok, solved_ok = REAL_CHECKS[game]
+        yield Case("real screenshot", board, real.image(game), parsed_ok, solved_ok)
+
+
+REAL_CHECKS: dict[str, tuple[Any, Callable[[Any], bool], Callable[[Any], bool]]] = {
+    "queens": (
+        real.QUEENS,
+        lambda parsed: same_partition(parsed.regions, real.QUEENS.regions),
+        lambda solution: queens_valid(real.QUEENS, solution),
+    ),
+    "tango": (
+        real.TANGO,
+        lambda parsed: (
+            dict(parsed.givens) == dict(real.TANGO.givens) and set(parsed.constraints) == set(real.TANGO.constraints)
+        ),
+        lambda solution: tango_valid(real.TANGO, solution),
+    ),
+    "zip": (real.ZIP, lambda parsed: parsed == real.ZIP, lambda solution: zip_valid(real.ZIP, solution)),
+    "mini-sudoku": (
+        real.SUDOKU,
+        lambda parsed: dict(parsed.givens) == dict(real.SUDOKU.givens),
+        lambda solution: sudoku_valid(real.SUDOKU, solution),
+    ),
+    "patches": (
+        real.PATCHES,
+        lambda parsed: parsed == real.PATCHES,
+        lambda solution: patches_valid(real.PATCHES, solution),
+    ),
+    # The word lengths are in a separate screenshot, so only the letters are compared.
+    "wend": (
+        real.WEND,
+        lambda parsed: parsed.letters == real.WEND.letters,
+        lambda solution: sorted(p.word for p in solution) == sorted(real.WEND_ANSWER),
+    ),
+}
+"""Real LinkedIn screenshots: the board the solver gets, the parse check and the answer check."""
 
 
 def benchmark_game(name: str, repeats: int) -> list[BenchRow]:

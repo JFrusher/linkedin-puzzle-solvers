@@ -138,21 +138,37 @@ on SBERT, which runs in CI; the pair selection logic is also tested locally with
 
 Both reuse existing engines. Mini Sudoku is a SAT encoding like Tango; Patches is exact cover like Queens,
 so Dancing Links moved from the Queens solver to `core/dlx.py`. Their generators make one-answer boards
-(Sudoku removes givens while the answer stays unique; Patches sharpens vague "any" clues until it does).
+(Sudoku removes givens while the answer stays unique; Patches retries tilings until one is unique).
 
 | Game | Size | Metric | Value |
 |---|---|---|---|
 | Mini Sudoku | 6x6 | `SAT` steps | 0% (Naked Single 507, Hidden Single 12; 9–11 givens) |
-| Patches | 5x5 | `Search` patches | 0% (Only Fit 190) |
-| Patches | 6x6 | `Search` patches | 0% (Only Fit 271, Only Cover 5) |
-| Patches | 7x7 | `Search` patches | 0% (Only Fit 335, Only Cover 8) |
+| Patches | 5x5 | `Search` patches | 5% (Only Fit 130, Only Cover 45, Search 10) |
+| Patches | 6x6 | `Search` patches | 7% (Only Fit 189, Only Cover 53, Search 18) |
+| Patches | 7x7 | `Search` patches | 6% (Only Fit 215, Only Cover 108, Search 20) |
 
-Patches vision first sent the whole top half of a clue cell to the recognizer, which read 80 of 99 areas
-wrong (it added a phantom digit, e.g. "2" as "72"). Cropping tight around the digit fixed all but 3; those
-3 boxes touched the crop edge because grid-line residue from the outer frame was counted as ink. Removing
-blobs that touch the cell edge fixed them and also the "square" icons read as "wide" in corner cells. With
-residue gone, empty halves measure 0 ink and the thinnest "1" measures 0.0199, so the ink threshold is 0.005.
-30 of 30 boards (5×5 to 7×7) now parse exactly.
+Patches boards follow the real game: a clue gives an area or a shape, not both. With area-only clues the
+rules covered every patch; shape-only clues leave 5–7% to `Search`. A Try and Fail rule, as in Queens, Tango
+and Wend, would be the next step.
+
+## Real screenshots
+
+One real capture per game is in `tests/fixtures/real/`, with the board read by hand in `bench/real.py`. Each
+hand-read board solves to exactly one answer, which checks the transcription. Running every parser against
+them first gave:
+
+| Game | First run | Cause (measured) | Fix |
+|---|---|---|---|
+| Queens | ✅ 9 regions | — | — |
+| Zip | one extra wall | the "1" disc reaches the wall probe: 0.051 of a cell vs threshold 0.05; real walls 0.194, synthetic 0.097 | threshold 0.075 |
+| Mini Sudoku | missed all three 1s | a "1" is 0.016 ink vs threshold 0.02; empty cells 0 | threshold 0.005 |
+| Tango | every symbol swapped, all signs missed | grey templates of our icons fit LinkedIn's badly; sign ink is grey 117+, test was < 100 | symbols by colour (blue − red: moon +145, sun −204); signs: ink < 160, and an "×" has ink at its centre (1.0) where "=" has a gap (0.0) |
+| Patches | crash | the layout was a guess: clues are coloured badges, an area or a shape | parse badges: saturation > 50 finds all 12; filled share 0.98+ = plain shape, 0.79–0.85 = "+" badge; white holes = digits |
+| Wend | crash | walls are light grey (178) not dark; loose crops read U as "PU" (36/40 tiles); WordNet has DOWNLOAD but not DOWNLOADED | median grey < 215; tight crops (40/40); add inflections; slots may come as their own screenshot |
+
+The synthetic renders were moved toward the real look where they differed (the "=" sign's bar gap, Patches
+badges, white digit weight), so the synthetic tests keep checking the same features. All six games now parse
+their real screenshot exactly and solve it; `tests/test_real.py` keeps it that way.
 
 ### Pinpoint (done)
 
