@@ -20,6 +20,9 @@ from core.solver_base import UnsolvableError  # noqa: E402
 from core.vision_base import GridNotFoundError  # noqa: E402
 from solvers import GAMES, get_game  # noqa: E402
 
+EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
+"""Typed example boards, one per game that can be written in."""
+
 SAMPLES = {
     "queens": lambda seed: synthetic.render_queens(synthetic.generate_queens(8, seed)[0], seed),
     "zip": lambda seed: synthetic.render_zip(synthetic.generate_zip(6, seed)[0], seed),
@@ -78,10 +81,33 @@ def pinpoint_page() -> None:
         show_run(result)
 
 
+def typed_page(name: str) -> None:
+    game = get_game(name)
+    assert game.text is not None
+    example = (EXAMPLES / f"{name}.txt").read_text()
+    help_text = {
+        "wend": "One row of letters per line, # for a wall; optionally a last line of word lengths.",
+        "crossclimb": "The word length, then the clue shared by the top and bottom words, then the middle clues.",
+    }[name]
+    text = st.text_area("Board", example, height=260, help=help_text)
+    try:
+        board = game.text(text)
+        result = game.solver().run(board)
+    except (UnsolvableError, ValueError) as error:
+        st.error(f"{type(error).__name__}: {error}")
+        return
+    st.success("Answer: " + ", ".join(item.word for item in result.solution))
+    show_run(result)
+
+
 def vision_page(name: str) -> None:
     game = get_game(name)
     assert game.parser is not None
-    source = st.radio("Board source", ["Synthetic sample", "Upload screenshot"], horizontal=True)
+    sources = ["Synthetic sample", "Upload screenshot"] + (["Type the board"] if game.text else [])
+    source = st.radio("Board source", sources, horizontal=True)
+    if source == "Type the board":
+        typed_page(name)
+        return
     if source == "Upload screenshot":
         upload = st.file_uploader("Screenshot", type=["png", "jpg", "jpeg"])
         if upload is None:

@@ -9,6 +9,7 @@ from typing import Any
 from core.solver_base import BaseSolver
 from core.vision_base import BaseVisionParser
 from solvers.crossclimb.solver import CrossclimbSolver
+from solvers.crossclimb.solver import board_from_text as crossclimb_from_text
 from solvers.crossclimb.vision import CrossclimbVisionParser
 from solvers.patches.solver import PatchesSolver
 from solvers.patches.vision import PatchesVisionParser
@@ -20,6 +21,7 @@ from solvers.sudoku.vision import SudokuVisionParser
 from solvers.tango.solver import TangoSolver
 from solvers.tango.vision import TangoVisionParser
 from solvers.wend.solver import WendSolver
+from solvers.wend.solver import board_from_text as wend_from_text
 from solvers.wend.vision import WendVisionParser
 from solvers.zip.solver import ZipSolver
 from solvers.zip.vision import ZipVisionParser
@@ -32,6 +34,8 @@ class Game:
     solver: Callable[[], BaseSolver[Any, Any]]
     parser: Callable[[], BaseVisionParser[Any, Any]] | None
     """``None`` for games played from a text stream rather than a screenshot."""
+    text: Callable[[str], Any] | None = None
+    """Builds the board from typed text, for games whose screenshot can be skipped."""
 
 
 GAMES: dict[str, Game] = {
@@ -46,8 +50,9 @@ GAMES: dict[str, Game] = {
             "Crossclimb (Word Ladder) — embeddings + Hamming graph",
             CrossclimbSolver,
             CrossclimbVisionParser,
+            crossclimb_from_text,
         ),
-        Game("wend", "Wend (Word Partitioning) — Trie DFS", WendSolver, WendVisionParser),
+        Game("wend", "Wend (Word Partitioning) — Trie DFS", WendSolver, WendVisionParser, wend_from_text),
         Game("mini-sudoku", "Mini Sudoku (6x6) — SAT", SudokuSolver, SudokuVisionParser),
         Game("patches", "Patches (Rectangles) — DLX exact cover", PatchesSolver, PatchesVisionParser),
     )
