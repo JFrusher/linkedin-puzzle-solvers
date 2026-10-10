@@ -15,7 +15,7 @@ import json
 import sys
 from enum import Enum
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -153,11 +153,14 @@ class SolveHandler(BaseHTTPRequestHandler):
             self._send(HTTPStatus.NOT_FOUND, {"error": f"no route {self.path}"})
 
     def do_POST(self) -> None:  # noqa: N802 (http.server naming)
-        length = int(self.headers.get("Content-Length", "0"))
-        if length > MAX_REQUEST_BYTES:
-            self._send(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": f"body exceeds {MAX_REQUEST_BYTES} bytes"})
+        # Only JSON: a browser page cannot send it cross-site without a CORS preflight, which is never granted.
+        if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
+            self._send(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"error": "Content-Type must be application/json"})
             return
         try:
+            length = int(self.headers.get("Content-Length", ""))
+            if not 0 <= length <= MAX_REQUEST_BYTES:
+                raise ValueError(f"Content-Length must be between 0 and {MAX_REQUEST_BYTES} bytes")
             request = json.loads(self.rfile.read(length))
             if not isinstance(request, dict):
                 raise ValueError("request body must be a JSON object")
@@ -180,10 +183,14 @@ class SolveHandler(BaseHTTPRequestHandler):
                 self._send(HTTPStatus.NOT_FOUND, {"error": f"no route {self.path}"})
         except (KeyError, ValueError, GridNotFoundError, UnsolvableError, json.JSONDecodeError) as error:
             self._send(HTTPStatus.BAD_REQUEST, {"error": f"{type(error).__name__}: {error}"})
+        except Exception as error:  # the client still gets an answer it can show
+            self._send(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"{type(error).__name__}: {error}"})
+            raise
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
-    server = ThreadingHTTPServer((args.host, args.port), SolveHandler)
+    # One request at a time: solves profile memory with tracemalloc, which cannot run twice at once.
+    server = HTTPServer((args.host, args.port), SolveHandler)
     console.print(f"Serving on http://{args.host}:{args.port} (POST /solve, POST /pinpoint, GET /health)")
     try:
         server.serve_forever()
