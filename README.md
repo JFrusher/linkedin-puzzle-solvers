@@ -33,6 +33,68 @@ Solved overlays on real LinkedIn screenshots (`tests/fixtures/real/`):
 
 ---
 
+## How it works
+
+Each animation runs one real LinkedIn screenshot through the whole pipeline. First the vision stages: find
+the board, detect the grid, read the cells. Then the solver's own deduction log, replayed step by step: the
+ringed cells are the ones each step decides, and red marks are cells or rectangles ruled out. Regenerate them
+with `python -m bench.gifs`.
+
+### Queens: exact cover with Dancing Links
+
+![Queens: find the board, read the regions, replay the deductions](docs/gifs/queens.gif)
+
+One queen per row, column and colour region, and no two queens touching: that is an exact-cover problem.
+The solver runs Knuth's Algorithm X on Dancing Links, with rows, columns and regions as primary items and
+every 2×2 window as a secondary item for the no-touch rule. The replay uses the rules a person would:
+Single Choice, Shared Attack (every slot left in a line attacks the same cells) and Confinement (k regions
+that fit inside k lines claim those lines).
+
+### Zip: Hamiltonian path with A*
+
+![Zip: read discs and walls, then grow the path checkpoint by checkpoint](docs/gifs/zip.gif)
+
+The path must visit every cell once and pass the numbers in order. A* searches over (head, visited cells,
+next checkpoint); because every move costs one and the path length is fixed, the heuristic is exact on any
+state that can still be finished. States are cut as soon as the unvisited cells split apart, a cut cell
+(found with Tarjan's algorithm) cannot be passed, or a cell is left with fewer than two exits.
+
+### Tango: SAT
+
+![Tango: read suns, moons and signs, then replay each forced cell](docs/gifs/tango.gif)
+
+One Boolean per cell (sun or moon). Each line holds exactly three of each, encoded with sequential-counter
+cardinality constraints, plus a clause pair per window of three cells and an equivalence or exclusive-or for
+each = or × sign. MiniSat solves it in under a millisecond. The replay explains every cell with No Three,
+Balance, Relation and Sign Balance.
+
+### Mini Sudoku: SAT, explained with singles
+
+![Mini Sudoku: read the givens, then fill each cell by a single](docs/gifs/mini-sudoku.gif)
+
+216 variables, one per cell and digit, with exactly-one clauses for every cell and for every digit in every
+row, column and 2×3 box. The replay uses naked singles (one digit left for a cell) and hidden singles (one
+cell left for a digit); this board needs only naked singles.
+
+### Patches: exact cover with Dancing Links
+
+![Patches: read the clue badges, then place each rectangle](docs/gifs/patches.gif)
+
+Every rectangle that fits a clue's area or shape and holds no other clue becomes a row. Its columns are the
+cells it covers plus the clue itself, and Dancing Links picks rows that cover everything exactly once. The
+replay uses Only Fit, Only Cover and Try and Fail: a red outline is a rectangle that leads to a dead end a
+few steps later.
+
+### Wend: trie search and exact tiling
+
+![Wend: read letters and walls, then place each word](docs/gifs/wend.gif)
+
+A trie of WordNet words and their inflections drives a depth-first search that lists every word path on the
+board. An exact tiling then picks words of the slot lengths that cover every tile. Nook (a tile with one
+open neighbour must start or end a word) and Only Word explain each placement.
+
+---
+
 ## Quick start
 
 ```bash
@@ -182,7 +244,7 @@ only when no single rule forces the move.
 ```text
 core/          vision_base · solver_base · explainer · visualizer · dlx · nlp (SBERT + WordNet)
 solvers/       queens · zip · tango · pinpoint · crossclimb · wend · sudoku · patches  (+ registry in __init__)
-bench/         benchmark_runner · synthetic (seeded generators + skewed renderers)
+bench/         benchmark_runner · synthetic (seeded generators + skewed renderers) · real (screenshot boards) · gifs
 tests/         one suite per game + core
 web_app/       Streamlit playground (Raw · Contours · HSV Masks · Graph Nodes tabs)
 extension/     Manifest V3: background.js (capture + REST) · content.js (overlay)
