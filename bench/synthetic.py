@@ -333,6 +333,9 @@ PINPOINT_SAMPLES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("pawn", "rook", "knight", "bishop", "queen"), "chessman"),
     (("oak", "maple", "birch", "willow", "elm"), "tree"),
     (("violin", "cello", "viola", "harp", "guitar"), "stringed instrument"),
+    # Real LinkedIn puzzles: #892 (9 Oct 2026, "Types of whales") and #891 (8 Oct 2026).
+    (("Blue", "Right", "Bowhead", "Humpback", "Orca"), "whale"),
+    (("Code", "Circuit", "Ice", "Deal", "Tie"), 'words before "breaker"'),
 )
 
 # --------------------------------------------------------------------------- renderers

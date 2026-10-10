@@ -134,6 +134,23 @@ wins. TEAM/WORK has only 8 × 9 candidate pairs, so this step is cheap. The samp
 5 October 2026 puzzle, TEAM-REAM-ROAM-FOAM-FORM-WORM-WORK. The middle ladder and the end pair both rely
 on SBERT, which runs in CI; the pair selection logic is also tested locally with a stand-in encoder.
 
+### Pinpoint (done)
+
+`solvers/pinpoint/wordplay.py` adds three WordNet-only checks; the measurements are on the real puzzles
+listed below plus my earlier samples as controls.
+
+| Check | Evidence |
+|---|---|
+| Join word | "breaker" 3/5; "whale" 4/5; no join above 1/5 for chess or instruments |
+| Subtype filter (red oak is an oak) | without it, "words after *red*" covered 5/5 trees, a false answer |
+| Word play ranks first only if it covers more clues than the best specific category (WordNet depth ≥ 7) | breaker 3 vs 1 → join wins; trees "family" 4 vs tree 5 → meaning wins; chess 1 vs 5 |
+| Clue + class word (blue → blue whale → whale) | whale coverage 5/5 instead of 3/5 |
+| Many senses | invented "point" set: 3/5 (no real clue list was found); every control ≤ 2 |
+
+Building the indexes first took 16 s, almost all of it NLTK parsing every WordNet synset. Counting meanings
+from the lemma index and parsing only words with 5+ meanings brought the build to 6.8 s, including
+WordNet's own load. "___ ten" style phrases remain out of reach without a phrase list.
+
 ## Rules by game
 
 ### Queens

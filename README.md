@@ -15,7 +15,7 @@ onto the original image.
 | **Queens** (Crowns) | LAB colour sampling + K-Means regions | Knuth's Algorithm X on Dancing Links |
 | **Zip** (Pathfinder) | Hough circles + EasyOCR digits, wall-thickness probes | A* with connectivity and degree pruning |
 | **Tango** (Sun & Moon) | Template matching (cells and edge signs) | CNF reduction solved by MiniSat (PySAT) |
-| **Pinpoint** (Patches) | Text stream | Sentence-BERT moving centroid × WordNet hypernyms |
+| **Pinpoint** (Patches) | Text stream | Sentence-BERT moving centroid × WordNet hypernyms + word-play checks (join word, many senses) |
 | **Crossclimb** (Word Ladder) | Letter-box rows + EasyOCR clues | SBERT clue answering + Hamming-1 ladder search + shared-clue end pair |
 | **Wend** (Word Partitioning) | Per-tile EasyOCR, wall tiles, slot rows | Trie-guided DFS tiling + flood-fill island pruning |
 
