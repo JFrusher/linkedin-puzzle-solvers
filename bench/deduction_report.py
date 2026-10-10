@@ -16,6 +16,7 @@ from typing import Any
 from bench import synthetic
 from solvers.queens.solver import QueensSolver
 from solvers.tango.solver import TangoSolver
+from solvers.wend.solver import WendSolver
 from solvers.zip.solver import ZipSolver
 
 SEEDS = range(20)
@@ -37,6 +38,10 @@ def main() -> None:
         print(
             f"| Queens | {n}x{n} | `Search` steps | {guess_share(QueensSolver, boards, 'Search', lambda b: b.size)} |"
         )
+    for n in (5, 6):
+        boards = [synthetic.generate_wend(n, seed) for seed in SEEDS]
+        share = guess_share(WendSolver, boards, "Search", lambda b: len(b.word_lengths))
+        print(f"| Wend | {n}x{n} | `Search` words | {share} |")
     boards = [synthetic.generate_tango(6, seed)[0] for seed in SEEDS]
     share = guess_share(TangoSolver, boards, "SAT", lambda b: b.size**2 - len(b.givens))
     print(f"| Tango | 6x6 | `SAT` steps | {share} |")

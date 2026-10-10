@@ -97,6 +97,25 @@ before they shipped:
 After the fixes there were 0 wrong deductions over 1,000 boards, and the rules alone filled every cell.
 `solve` keeps SAT (under 1 ms).
 
+### Wend (done)
+
+Solving is already fast (5x5 worst 3.9 ms, 6x6 worst 6.2 ms, with or without word lengths), so these rules feed
+the explanation only. The new generator writes random dictionary words along random snakes and keeps only
+one-answer boards. About 40% of raw boards have one answer, since WordNet is far larger than the game's
+dictionary.
+
+| Rules | `Search` words (20 boards, 5x5 / 6x6) |
+|---|---|
+| Replay in solution order (before) | 100% |
+| Only Word + Nook | 27% / 27% |
+| + Island + Try and Fail | 0% / 0% (398 log steps at 5x5) |
+| + Try and Fail, no Island | **0% / 0%** (299 log steps at 5x5): Island was redundant, so it was removed |
+
+**Nook (your rule):** a tile with one open neighbour can only be a word's first or last letter. The search
+already obeys this implicitly, because no path can pass through such a tile. In the log it marks the step
+where that tile's only fitting word is placed. Corridor and cut-cell pruning were skipped, because there is
+no speed problem to fix.
+
 ## Rules by game
 
 ### Queens

@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
 from core.nlp import dictionary_words
@@ -83,6 +83,13 @@ class WendSolver(BaseSolver[WendBoard, list[WordPlacement]]):
         self.trie = Trie(dictionary_words(MIN_WORD_LENGTH) if words is None else words)
 
     def solve(self, board_state: WendBoard) -> list[WordPlacement]:
+        chosen = next(self.solutions(board_state), None)
+        if chosen is None:
+            raise UnsolvableError("no partition of the board into dictionary words exists")
+        return chosen
+
+    def solutions(self, board_state: WendBoard) -> Iterator[list[WordPlacement]]:
+        """Yield every tiling; take two to test uniqueness."""
         placements = self._enumerate(board_state)
         by_cell: dict[Cell, list[WordPlacement]] = {}
         for placement in placements:
@@ -92,15 +99,78 @@ class WendSolver(BaseSolver[WendBoard, list[WordPlacement]]):
         missing = open_cells - by_cell.keys()
         if missing:
             raise UnsolvableError(f"tiles {sorted(missing)} belong to no dictionary word")
+        yield from self._tile(board_state, open_cells, by_cell, Counter(board_state.word_lengths), [])
+
+    def explain(self, board_state: WendBoard, solution: list[WordPlacement]) -> None:
+        """Replay the tiling with human rules; follow the solution only when none applies.
+
+        * Only Word / Nook: a tile with one word left that fits takes it (a nook, a tile with one open
+          neighbour, can only be a word's first or last letter).
+        * Try and Fail: a word whose placement, followed by Only Word steps, leaves a tile with no word is
+          ruled out.
+        """
+        placements = self._enumerate(board_state)
         lengths = Counter(board_state.word_lengths)
-        chosen = self._tile(board_state, open_cells, by_cell, lengths, [])
-        if chosen is None:
-            raise UnsolvableError("no partition of the board into dictionary words exists")
-        for placement in chosen:
-            self.explainer.add(
-                "Word", f"{placement.word} covers {' -> '.join(map(str, placement.cells))}", placement.cells[0]
-            )
-        return chosen
+        uncovered = set(board_state.open_cells)
+        ruled_out: set[tuple[Cell, ...]] = set()
+        remaining = list(solution)
+
+        def fitting(cover: set[Cell], counts: Counter[int]) -> list[WordPlacement]:
+            return [
+                p
+                for p in placements
+                if p.cells not in ruled_out and cover.issuperset(p.cells) and (not counts or counts[len(p.cells)] > 0)
+            ]
+
+        def only_word(cover: set[Cell], fits: list[WordPlacement]) -> tuple[Cell, WordPlacement] | None:
+            for cell in sorted(cover):
+                options = [p for p in fits if cell in p.cells]
+                if len(options) == 1:
+                    return cell, options[0]
+            return None
+
+        def dead_end(placement: WordPlacement) -> bool:
+            cover, counts = uncovered - set(placement.cells), Counter(lengths)
+            if counts:
+                counts[len(placement.cells)] -= 1
+            while cover:
+                fits = fitting(cover, counts)
+                if any(not any(cell in p.cells for p in fits) for cell in cover):
+                    return True
+                forced = only_word(cover, fits)
+                if forced is None:
+                    return False
+                cover -= set(forced[1].cells)
+                if counts:
+                    counts[len(forced[1].cells)] -= 1
+            return False
+
+        while uncovered:
+            fits = fitting(uncovered, lengths)
+            forced = only_word(uncovered, fits)
+            if forced is not None:
+                cell, placement = forced
+                r, c = cell
+                if sum(nb in uncovered for nb in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1))) == 1:
+                    rule, reason = "Nook", f"{cell} has one open neighbour, so a word ends there, and only this fits"
+                else:
+                    rule, reason = "Only Word", f"{cell} lies on only one word that still fits"
+            else:
+                failing = next((p for p in fits if dead_end(p)), None)
+                if failing is not None:
+                    ruled_out.add(failing.cells)
+                    self.explainer.add(
+                        "Try and Fail", f"{failing.word} leaves a tile with no word a few steps later", failing.cells[0]
+                    )
+                    continue
+                placement = min(remaining, key=lambda p: min(p.cells))
+                rule, reason = "Search", "no rule applies, so the search picks it"
+            remaining = [p for p in remaining if p.cells != placement.cells]
+            uncovered -= set(placement.cells)
+            if lengths:
+                lengths[len(placement.cells)] -= 1
+            path = " -> ".join(map(str, placement.cells))
+            self.explainer.add(rule, f"{placement.word} covers {path} because {reason}", placement.cells[0])
 
     def _enumerate(self, board: WendBoard) -> list[WordPlacement]:
         allowed = set(board.word_lengths)
@@ -135,9 +205,10 @@ class WendSolver(BaseSolver[WendBoard, list[WordPlacement]]):
         by_cell: dict[Cell, list[WordPlacement]],
         lengths: Counter[int],
         chosen: list[WordPlacement],
-    ) -> list[WordPlacement] | None:
+    ) -> Iterator[list[WordPlacement]]:
         if not uncovered:
-            return list(chosen)
+            yield list(chosen)
+            return
 
         def usable(placement: WordPlacement) -> bool:
             return all(cell in uncovered for cell in placement.cells) and (
@@ -153,13 +224,10 @@ class WendSolver(BaseSolver[WendBoard, list[WordPlacement]]):
                 lengths[len(placement.cells)] -= 1
             if self._islands_fillable(remaining, lengths):
                 chosen.append(placement)
-                result = self._tile(board, remaining, by_cell, lengths, chosen)
-                if result is not None:
-                    return result
+                yield from self._tile(board, remaining, by_cell, lengths, chosen)
                 chosen.pop()
             if lengths:
                 lengths[len(placement.cells)] += 1
-        return None
 
     @staticmethod
     def _islands_fillable(uncovered: set[Cell], lengths: Counter[int]) -> bool:

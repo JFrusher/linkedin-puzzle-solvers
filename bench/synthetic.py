@@ -9,16 +9,18 @@ from __future__ import annotations
 
 import random
 from collections import deque
+from functools import lru_cache
 from itertools import islice
 
 import cv2
 import numpy as np
 
 from core import visualizer
+from core.nlp import dictionary_words
 from solvers.crossclimb.solver import CrossclimbBoard
 from solvers.queens.solver import Cell, QueensBoard, QueensSolver
 from solvers.tango.solver import Constraint, Grid, Relation, Symbol, TangoBoard, TangoSolver
-from solvers.wend.solver import WendBoard
+from solvers.wend.solver import MIN_WORD_LENGTH, WendBoard, WendSolver
 from solvers.zip.solver import ZipBoard, ZipSolver
 
 CELL = 80
@@ -248,6 +250,57 @@ def generate_tango(n: int, seed: int, givens: int = 4, signs: int = 4) -> tuple[
         else:
             r, c = rng.choice(sorted(wrong))
             shown[(r, c)] = solution[r][c]
+
+
+def generate_wend(n: int, seed: int, walls: int = 1) -> WendBoard:
+    """Tile the open cells with random snakes of 3–6 cells, write a random dictionary word along each, and
+    retry until the board has exactly one answer, like the real game.
+    """
+    rng = random.Random(seed)
+    cells = [(r, c) for r in range(n) for c in range(n)]
+    by_length: dict[int, list[str]] = {}
+    for word in sorted(dictionary_words(MIN_WORD_LENGTH)):
+        by_length.setdefault(len(word), []).append(word)
+    for _ in range(1000):
+        wall = set(rng.sample(cells, walls))
+        free = set(cells) - wall
+        paths: list[list[Cell]] = []
+
+        while free:
+            # Start from the tightest cell so no tile gets stranded.
+            path = [min(free, key=lambda cell: (_open_sides(cell, free), rng.random()))]
+            free.discard(path[0])
+            target = rng.randint(3, 6)
+            while len(path) < target:
+                r, c = path[-1]
+                options = [
+                    (r + dr, c + dc) for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)) if (r + dr, c + dc) in free
+                ]
+                if not options:
+                    break
+                path.append(rng.choice(options))
+                free.discard(path[-1])
+            if len(path) < MIN_WORD_LENGTH:
+                break
+            paths.append(path)
+        else:
+            letters: list[list[str | None]] = [[None] * n for _ in range(n)]
+            for path in paths:
+                for (r, c), letter in zip(path, rng.choice(by_length[len(path)]), strict=True):
+                    letters[r][c] = letter
+            board = WendBoard(tuple(tuple(row) for row in letters), tuple(sorted(len(path) for path in paths)))
+            if len(list(islice(_wend_solver().solutions(board), 2))) == 1:
+                return board
+    raise ValueError(f"could not make a one-answer {n}x{n} board with {walls} wall(s)")
+
+
+@lru_cache(maxsize=1)
+def _wend_solver() -> WendSolver:
+    return WendSolver()  # building the WordNet Trie takes seconds, so share one
+
+
+def _open_sides(cell: Cell, free: set[Cell]) -> int:
+    return sum((cell[0] + dr, cell[1] + dc) in free for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)))
 
 
 WEND_SAMPLE = WendBoard(
