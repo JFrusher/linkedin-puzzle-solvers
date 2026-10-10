@@ -193,12 +193,14 @@ About half the categories are word play: a hidden word joins every clue into a c
 cannot find these. Three checks would cover what was found:
 
 - **Join word:** find a word X such that "clue X", "X clue" or "clueX" is a WordNet compound for most
-  clues. WordNet has "codebreaker" and "icebreaker", but phrases such as "hang ten" need a phrase list
-  WordNet lacks.
+  clues. Checked: WordNet covers 3 of 5 "breaker" clues (circuit breaker, icebreaker, tiebreaker; not
+  code breaker or deal breaker), so "most clues" is enough to win there. It has none of the "ten" phrases
+  (hang ten, perfect ten, top ten), so those need a phrase list WordNet lacks.
 - **Partial-name class:** "Blue", "Right" and "Bowhead" are whale names only with "whale" added, so try
-  "clue + candidate" as a lemma (blue whale, right whale) as well as hypernyms.
-- **Many senses:** when every clue matches a different WordNet sense of one word ("point"), rank that
-  word as the category.
+  "clue + candidate" as a lemma as well as hypernyms. Checked: blue whale, right whale, bowhead whale and
+  humpback whale are all WordNet lemmas, and orca is one on its own, so this covers 5 of 5.
+- **Many senses:** when every clue matches a different WordNet sense of one word, rank that word as the
+  category. "point" has 40 WordNet senses, so this check must want most clues to land on distinct senses.
 
 ## Order
 
