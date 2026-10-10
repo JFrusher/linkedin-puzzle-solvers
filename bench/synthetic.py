@@ -142,14 +142,8 @@ def _component(cells: set[Cell], start: Cell) -> set[Cell]:
     return seen
 
 
-def generate_zip(n: int, seed: int, checkpoints: int = 6, walls: int = 2) -> tuple[ZipBoard, list[Cell]]:
-    """Randomise a serpentine Hamiltonian path with backbite moves, add checkpoints and walls, then more
-    clues until the path is the only answer.
-
-    While a second path exists, either wall off an edge it uses that the true path does not (always breaks
-    it) or promote a cell it reaches at a different step into a checkpoint.
-    """
-    rng = random.Random(seed)
+def hamiltonian_path(n: int, rng: random.Random) -> list[Cell]:
+    """A random path through every cell: a serpentine randomised by backbite moves."""
     path: list[Cell] = [(r, c if r % 2 == 0 else n - 1 - c) for r in range(n) for c in range(n)]
     for _ in range(n * n * 20):
         if rng.random() < 0.5:
@@ -160,6 +154,23 @@ def generate_zip(n: int, seed: int, checkpoints: int = 6, walls: int = 2) -> tup
         k = path.index(neighbour)
         if k != len(path) - 2:
             path[k + 1 :] = reversed(path[k + 1 :])
+    return path
+
+
+def sparse_zip(n: int, seed: int, checkpoints: int = 4) -> ZipBoard:
+    """Few checkpoints and no walls, like many real boards; may have several answers (stress case)."""
+    path = hamiltonian_path(n, random.Random(seed))
+    return ZipBoard(n, tuple(path[round(i * (len(path) - 1) / (checkpoints - 1))] for i in range(checkpoints)))
+
+
+def generate_zip(n: int, seed: int, checkpoints: int = 6, walls: int = 2) -> tuple[ZipBoard, list[Cell]]:
+    """Random Hamiltonian path, a few checkpoints and walls, then more clues until it is the only answer.
+
+    While a second path exists, either wall off an edge it uses that the true path does not (always breaks
+    it) or promote a cell it reaches at a different step into a checkpoint.
+    """
+    rng = random.Random(seed)
+    path = hamiltonian_path(n, rng)
     stride = (len(path) - 1) / (checkpoints - 1)
     marks = {path[round(i * stride)] for i in range(checkpoints)}
     used = {frozenset(pair) for pair in zip(path, path[1:])}

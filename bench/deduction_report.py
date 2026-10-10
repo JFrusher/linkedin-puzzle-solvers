@@ -3,7 +3,7 @@
     python -m bench.deduction_report
 
 Queens and Tango: share of explanation steps that fall back to search (``Search`` / ``SAT``).
-Zip: nodes expanded and solve latency, whose spread shows where pruning is weak.
+Zip: solve latency on sparse boards (few checkpoints, no walls), where weak pruning shows as a long tail.
 """
 
 from __future__ import annotations
@@ -40,14 +40,11 @@ def main() -> None:
     boards = [synthetic.generate_tango(6, seed)[0] for seed in SEEDS]
     share = guess_share(TangoSolver, boards, "SAT", lambda b: b.size**2 - len(b.givens))
     print(f"| Tango | 6x6 | `SAT` steps | {share} |")
-    for n in (5, 6, 7):
-        runs = [ZipSolver().run(synthetic.generate_zip(n, seed)[0], track_memory=False).profile for seed in range(10)]
-        nodes = [run.nodes_expanded for run in runs]
-        micros = [run.latency_us for run in runs]
-        spread = (
-            f"{statistics.median(nodes):,.0f} / {max(nodes):,} · {statistics.median(micros):,.0f} / {max(micros):,.0f}"
-        )
-        print(f"| Zip | {n}x{n} | nodes median / max · µs median / max | {spread} |")
+    for n in (6, 7, 8):
+        runs = [ZipSolver().run(synthetic.sparse_zip(n, seed), track_memory=False).profile for seed in range(30)]
+        micros = sorted(run.latency_us for run in runs)
+        spread = f"{statistics.median(micros) / 1000:,.1f} / {micros[26] / 1000:,.1f} / {micros[-1] / 1000:,.1f}"
+        print(f"| Zip sparse (4 checkpoints) | {n}x{n} | ms median / p90 / max | {spread} |")
 
 
 if __name__ == "__main__":

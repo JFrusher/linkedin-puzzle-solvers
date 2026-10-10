@@ -51,6 +51,32 @@ The 2x1 domino rule is the one-region case of Shared Attack: a region stuck in o
 row. **`solve` keeps plain DLX.** Running the rules to completion takes 1.1–2.9 ms against 0.3–0.9 ms for DLX,
 and DLX already expands about N nodes, so there is no search left to prune. The rules drive the explanation.
 
+### Zip (done)
+
+Real Zip boards have few numbers, so the stress case is sparse boards: 4 checkpoints, no walls, 30 seeds per
+size. Each change was kept only after measuring it on the same boards.
+
+| Change | Evidence | Kept |
+|---|---|---|
+| Checkerboard parity | identical node counts: degree and connectivity checks already imply it | no |
+| Checkpoint order (reach the next checkpoint without touching a later one) | caught 325 of 622 off-path states on the worst 7x7; max nodes 671 → 346 | yes |
+| Unvisited cells connected on their own, not through the head | caught 25% of off-path states on the worst sparse 8x8; max nodes 98,631 → 54,044 | yes |
+| Warnsdorff move order (fewest onward moves first) | sparse 8x8 p90 3.6 s → 9.8 ms | yes |
+| Tarjan bottlenecks (end is a cut cell; a cut cell splits off a part the head cannot enter) | caught 55% + 20% of the remaining off-path states; worst 7x7 nodes 32,680 → 13,024 | yes |
+| Double forced move | caught < 2% | no |
+| Skip repeated states (same head, visited set, next checkpoint) | 58% of popped states are repeats; halves the tail again | **not yet**: answers that meet at the same state must be stitched back together, or answer counting breaks |
+
+| Sparse boards | p90 before → after | worst before → after |
+|---|---|---|
+| 6x6 | 8.6 → 3.4 ms | 65 → 6 ms |
+| 7x7 | 100 → 7 ms | 2.4 → 1.3 s |
+| 8x8 | 5,275 → 9 ms | 18.3 → 2.8 s |
+
+Medians on generated boards are unchanged within noise (about 2–5 ms), since each state now costs a little more.
+The remaining tail is deep dead branches that no cheap static check found; repeated-state skipping is the
+measured next step. Solver soundness: 0 mismatches against the true path over 90 one-answer boards, and valid
+paths on 60 sparse boards.
+
 ## Rules by game
 
 ### Queens

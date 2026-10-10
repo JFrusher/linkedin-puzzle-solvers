@@ -4,7 +4,7 @@ from itertools import islice
 
 import pytest
 
-from bench.synthetic import generate_zip, render_zip
+from bench.synthetic import generate_zip, render_zip, sparse_zip
 from core.solver_base import UnsolvableError
 from solvers.zip.solver import ZipBoard, ZipSolver, is_valid_solution
 from solvers.zip.vision import ZipVisionParser
@@ -47,3 +47,16 @@ def test_vision_reads_checkpoints_and_walls(n: int, seed: int) -> None:
 def test_generator_makes_one_answer_boards(n: int) -> None:
     board, truth = generate_zip(n, seed=n + 100)
     assert list(islice(ZipSolver().solutions(board), 2)) == [truth]
+
+
+@pytest.mark.parametrize("n", [5, 6, 7])
+def test_pruning_keeps_the_only_answer(n: int) -> None:
+    for seed in range(5):
+        board, truth = generate_zip(n, seed + 200)
+        assert ZipSolver().solve(board) == truth
+
+
+@pytest.mark.parametrize("n", [6, 7, 8])
+def test_sparse_boards_solve(n: int) -> None:
+    board = sparse_zip(n, seed=1)
+    assert is_valid_solution(board, ZipSolver().solve(board))

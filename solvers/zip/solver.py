@@ -8,9 +8,12 @@ makes ``f = g + h`` exact for every feasible state. Ties are broken by depth
 next checkpoint. Infeasible states are pruned before they enter the queue:
 
 * stepping on a checkpoint out of order;
-* unvisited cells no longer connected to the head (flood fill);
+* unvisited cells no longer connected among themselves, or not touching the head;
+* a bottleneck the path cannot pass: the end is a cut cell, a cut cell splits off two parts, or the
+  part split off away from the end does not touch the head (Tarjan cut cells, DFS rooted at the end);
 * an unvisited cell other than the final checkpoint left with fewer than two
-  usable neighbours (degree-constrained subgraph check).
+  usable neighbours (degree-constrained subgraph check);
+* the next checkpoint no longer reachable without stepping on a later one.
 """
 
 from __future__ import annotations
@@ -99,7 +102,56 @@ class ZipSolver(BaseSolver[ZipBoard, list[Cell]]):
             )
             return max(remaining, chain), next_distance
 
-        def feasible(head: int, visited: int) -> bool:
+        # later[k]: checkpoints after the k-th, which the path may not touch while heading for the k-th.
+        later = [sum(1 << cp for cp in checkpoints[k + 1 :]) for k in range(len(checkpoints))]
+
+        def bottlenecks_ok(unvisited: int, starts: list[int]) -> bool:
+            """Tarjan DFS from the end over the unvisited cells.
+
+            Fails when the cells are disconnected, when the end is a cut cell (the path would have to leave
+            it), or when a cut cell splits off a part that the path cannot enter first: the part must be
+            the one away from the end, and the head must touch it.
+            """
+            order = {end: 0}
+            low = {end: 0}
+            size = {end: 1}
+            root_children = 0
+            split: set[int] = set()
+            stack = [(end, -1, iter(adjacency[end]))]
+            while stack:
+                cell, parent, neighbours = stack[-1]
+                advanced = False
+                for nb in neighbours:
+                    if not (unvisited >> nb) & 1 or nb == parent:
+                        continue
+                    if nb in order:
+                        low[cell] = min(low[cell], order[nb])
+                        continue
+                    order[nb] = low[nb] = len(order)
+                    size[nb] = 1
+                    stack.append((nb, cell, iter(adjacency[nb])))
+                    advanced = True
+                    break
+                if advanced:
+                    continue
+                stack.pop()
+                if parent < 0:
+                    continue
+                low[parent] = min(low[parent], low[cell])
+                size[parent] += size[cell]
+                if parent == end:
+                    root_children += 1
+                elif low[cell] >= order[parent]:
+                    # ``parent`` is a cut cell and ``cell``'s subtree lies on the side away from the end.
+                    if parent in split:
+                        return False  # a second split-off part: the path cannot cover three parts
+                    split.add(parent)
+                    first, last = order[cell], order[cell] + size[cell]
+                    if not any(nb in order and first <= order[nb] < last for nb in starts):
+                        return False
+            return len(order) == unvisited.bit_count() and root_children <= 1
+
+        def feasible(head: int, visited: int, next_checkpoint: int) -> bool:
             unvisited = full & ~visited
             if not unvisited:
                 return True
@@ -112,21 +164,32 @@ class ZipSolver(BaseSolver[ZipBoard, list[Cell]]):
                 degree = sum(1 for nb in adjacency[cell] if nb == head or (unvisited >> nb) & 1)
                 if degree < (1 if cell == end else 2):
                     return False
-            # Flood fill from the head across unvisited cells must reach all of them.
+            # After this move the path never returns to the head, so the rest of the path runs from a cell
+            # touching the head, through every unvisited cell, to the end.
+            starts = [nb for nb in adjacency[head] if (unvisited >> nb) & 1]
+            if not starts or not bottlenecks_ok(unvisited, starts):
+                return False
+            # Checkpoint order: the next checkpoint must be reachable without stepping on a later one.
+            if next_checkpoint == len(checkpoints):
+                return True
+            target = 1 << checkpoints[next_checkpoint]
+            allowed = unvisited & ~later[next_checkpoint]
             seen, stack = 0, [head]
             while stack:
                 cell = stack.pop()
                 for nb in adjacency[cell]:
                     bit = 1 << nb
-                    if unvisited & bit and not seen & bit:
+                    if allowed & bit and not seen & bit:
+                        if bit == target:
+                            return True
                         seen |= bit
                         stack.append(nb)
-            return seen == unvisited
+            return False
 
         start = _State(head=checkpoints[0], visited=1 << checkpoints[0], next_checkpoint=1, g=0, parent=None)
         tie = count()
         h, d = heuristic(start)
-        frontier: list[tuple[int, int, int, int, _State]] = [(h, 0, d, next(tie), start)]
+        frontier: list[tuple[int, int, int, int, int, _State]] = [(h, 0, 0, d, next(tie), start)]
         while frontier:
             *_, state = heapq.heappop(frontier)
             self.nodes_expanded += 1
@@ -143,7 +206,7 @@ class ZipSolver(BaseSolver[ZipBoard, list[Cell]]):
                 if order is not None and order != state.next_checkpoint:
                     continue
                 visited = state.visited | bit
-                if not feasible(nb, visited):
+                if not feasible(nb, visited, state.next_checkpoint + (order is not None)):
                     continue
                 child = _State(
                     head=nb,
@@ -153,7 +216,9 @@ class ZipSolver(BaseSolver[ZipBoard, list[Cell]]):
                     parent=state,
                 )
                 h, d = heuristic(child)
-                heapq.heappush(frontier, (child.g + h, -child.g, d, next(tie), child))
+                # Warnsdorff: among equal-depth siblings, try the cell with the fewest onward moves first.
+                onward = sum(1 for nxt in adjacency[nb] if not (visited >> nxt) & 1)
+                heapq.heappush(frontier, (child.g + h, -child.g, onward, d, next(tie), child))
 
     @staticmethod
     def _path(state: _State, n: int) -> list[Cell]:
