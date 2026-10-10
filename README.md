@@ -3,6 +3,8 @@
 [![CI](https://github.com/JFrusher/linkedin-puzzle-solvers/actions/workflows/ci.yml/badge.svg)](https://github.com/JFrusher/linkedin-puzzle-solvers/actions/workflows/ci.yml)
 [![Benchmark](https://github.com/JFrusher/linkedin-puzzle-solvers/actions/workflows/benchmark.yml/badge.svg)](https://github.com/JFrusher/linkedin-puzzle-solvers/actions/workflows/benchmark.yml)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
+![Coverage](https://img.shields.io/badge/coverage-%E2%89%A590%25-brightgreen)
+![mypy](https://img.shields.io/badge/mypy-strict-blue)
 ![OpenCV](https://img.shields.io/badge/vision-OpenCV%20%7C%20EasyOCR-green)
 ![Solvers](https://img.shields.io/badge/solvers-DLX%20%7C%20A*%20%7C%20SAT%20%7C%20SBERT%20%7C%20Trie-purple)
 
@@ -310,13 +312,36 @@ only when no single rule forces the move.
 
 ---
 
+## Testing
+
+CI runs `ruff`, `mypy --strict` over every module, then `pytest --cov`, which fails below 90% line coverage of
+`core/`, `solvers/` and `main.py` (the badge quotes that floor). Example tests pin known boards, and property tests
+in `tests/test_properties.py` let Hypothesis draw the inputs and check each answer against something independent:
+
+| Property | Oracle |
+|---|---|
+| Dancing Links finds every exact cover of a random 0/1 matrix and nothing else | Brute force over every subset of rows |
+| The Queens solver finds every valid placement on any colouring, unique or not | Every column permutation, checked by the rules |
+| Transposing a Queens board transposes its set of answers | Symmetry |
+| Transposing a Patches board (tall becomes wide) transposes its one answer | Symmetry |
+| Relabelling the digits of a Mini Sudoku relabels its one answer | Symmetry |
+
+Dropping the no-touch rule from the Queens solver fails the first Queens property within a few examples.
+
+```bash
+mypy                    # strict, settings in pyproject.toml
+pytest -q --cov         # unit, real-screenshot and property tests
+```
+
+---
+
 ## Repository layout
 
 ```text
 core/          vision_base · solver_base · explainer · visualizer · dlx · nlp (SBERT + WordNet)
 solvers/       queens · zip · tango · pinpoint · crossclimb · wend · sudoku · patches  (+ registry in __init__)
 bench/         benchmark_runner · synthetic (seeded generators + skewed renderers) · real (screenshot boards) · gifs
-tests/         one suite per game + core, real screenshots (fixtures/real), typed boards, animations
+tests/         one suite per game + core, real screenshots (fixtures/real), typed boards, animations, properties
 web_app/       Streamlit playground (sample, upload or typed board · Raw · Contours · HSV Masks · Graph Nodes tabs)
 extension/     Manifest V3: background.js (capture + REST) · content.js (overlay)
 main.py        CLI: solve · stream · benchmark · serve

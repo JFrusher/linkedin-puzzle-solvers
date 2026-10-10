@@ -24,7 +24,7 @@ from solvers.zip.solver import ZipSolver
 SEEDS = range(20)
 
 
-def guess_share(solver_cls: type, boards: list, guess_rule: str, fills: Callable[[Any], int]) -> str:
+def guess_share(solver_cls: type, boards: list[Any], guess_rule: str, fills: Callable[[Any], int]) -> str:
     """Share of filled cells decided by ``guess_rule``, plus how often each rule fired."""
     steps = [step for board in boards for step in solver_cls().run(board, track_memory=False).explanation.steps]
     fired = Counter(step.rule for step in steps if step.rule != "Given")
@@ -33,6 +33,7 @@ def guess_share(solver_cls: type, boards: list, guess_rule: str, fills: Callable
 
 
 def main() -> None:
+    boards: list[Any]
     print("| Game | Size | Metric | Value |")
     print("|---|---|---|---|")
     for n in (7, 8, 9, 10):

@@ -22,6 +22,7 @@ from bench import real
 from core import visualizer
 from core.vision_base import GRID_SIDE
 from solvers import get_game
+from solvers.wend.vision import WendVisionParser
 
 OUT = Path(__file__).resolve().parent.parent / "docs" / "gifs"
 GAMES = ("queens", "zip", "tango", "mini-sudoku", "patches", "wend")
@@ -95,7 +96,10 @@ def rect_cells(top: int, left: int, height: int, width: int) -> set[tuple[int, i
 
 
 def patch_cells(message: str) -> set[tuple[int, int]]:
-    height, width, top, left = map(int, re.search(r"(\d+)x(\d+) patch at \((\d+), (\d+)\)", message).groups())
+    match = re.search(r"(\d+)x(\d+) patch at \((\d+), (\d+)\)", message)
+    if match is None:
+        raise ValueError(f"no patch in {message!r}")
+    height, width, top, left = map(int, match.groups())
     return rect_cells(top, left, height, width)
 
 
@@ -286,17 +290,19 @@ def wrap(draw: ImageDraw.ImageDraw, text: str, face: ImageFont.FreeTypeFont, wid
 
 def story(name: str) -> tuple[list[Beat], tuple[str, str]]:
     game = get_game(name)
+    if game.parser is None:
+        raise ValueError(f"{name} has no vision stage")
     parser = game.parser()
     picture = real.image(name)
     grid = parser.rectify_grid(picture)
     n = parser.detect_grid_size(grid.image)
     board = parser.parse(picture)
     if name == "wend":
-        board = replace(board, word_lengths=parser.slot_lengths(real.image("wend-slots")))
+        board = replace(board, word_lengths=WendVisionParser().slot_lengths(real.image("wend-slots")))
     solver = game.solver()
     result = solver.run(board)
     latency = statistics.median(solver.run(board, track_memory=False).profile.latency_us for _ in range(5))
-    parser.warp_to_image = lambda _image, canvas: canvas  # keep the overlay in rectified coordinates
+    parser.warp_to_image = lambda _image, canvas: canvas  # type: ignore[method-assign, assignment]  # keep the overlay in rectified coordinates
     layer = parser.overlay_layer(picture, board, result.solution)
 
     found = picture.copy()

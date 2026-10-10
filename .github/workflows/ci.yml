@@ -43,8 +43,11 @@ jobs:
           ruff check .
           ruff format --check .
 
-      - name: Unit tests
-        run: pytest -q
+      - name: Type check (strict)
+        run: mypy
+
+      - name: Unit and property tests with coverage
+        run: pytest -q --cov
 
       - name: Benchmark smoke test
         run: python main.py benchmark --game all --repeats 3
