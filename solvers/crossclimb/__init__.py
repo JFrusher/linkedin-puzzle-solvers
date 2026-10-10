@@ -1,0 +1,1 @@
+"""Crossclimb puzzle module."""
