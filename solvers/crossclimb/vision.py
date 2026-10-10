@@ -70,16 +70,22 @@ class CrossclimbVisionParser(BaseVisionParser[CrossclimbBoard, list[Rung]]):
 
     def overlay_layer(self, image: np.ndarray, board: CrossclimbBoard, solution: list[Rung]) -> np.ndarray:
         """Write each answer into its row's boxes and tag the row with its ladder position."""
-        rows = self.detect_rows(image)
-        layer = np.zeros((*image.shape[:2], 4), dtype=np.uint8)
-        # Middle rows are matched by clue; the top and bottom rows by position, since they share a clue.
-        middle = {rung.clue: (index + 1, rung.word) for index, rung in enumerate(solution[1:-1], start=1)}
+        rows = self._box_rows(image)  # boxes only: the clues were read once, in parse
+        if len(rows) != len(board.clues) + 2:
+            raise ValueError(f"expected {len(board.clues) + 2} letter-box rows, found {len(rows)}")
+        # board.clues are in screen order; each middle row takes the ladder rung of its clue (duplicates in turn).
+        ladder: dict[str, list[tuple[int, str]]] = {}
+        for rank, rung in enumerate(solution[1:-1], start=2):
+            ladder.setdefault(rung.clue, []).append((rank, rung.word))
         placements = (
-            [(1, solution[0].word)] + [middle[row.clue] for row in rows[1:-1]] + [(len(solution), solution[-1].word)]
+            [(1, solution[0].word)]
+            + [ladder[clue].pop(0) for clue in board.clues]
+            + [(len(solution), solution[-1].word)]
         )
-        for row, (rank, word) in zip(rows, placements, strict=True):
-            for (x, y, w, h), letter in zip(row.boxes, word):
+        layer = np.zeros((*image.shape[:2], 4), dtype=np.uint8)
+        for boxes, (rank, word) in zip(rows, placements, strict=True):
+            for (x, y, w, h), letter in zip(boxes, word):
                 visualizer.draw_label(layer, letter, (x + w // 2, y + h // 2), h / 40, visualizer.PATH)
-            x, y, w, h = row.boxes[0]
+            x, y, w, h = boxes[0]
             visualizer.draw_label(layer, f"#{rank}", (x - w // 2 - 4, y + h // 2), h / 60, visualizer.GOLD)
         return layer

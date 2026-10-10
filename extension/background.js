@@ -31,13 +31,14 @@ chrome.action.onClicked.addListener(async (tab) => {
     return;
   }
   await chrome.action.setBadgeText({ tabId: tab.id, text: "…" });
-  await chrome.tabs.sendMessage(tab.id, { type: "clear" });
   try {
+    // Rejects when the tab has no content script yet (it was open before the extension loaded): reload the tab.
+    await chrome.tabs.sendMessage(tab.id, { type: "clear" });
     const result = await solve(game, tab.windowId);
     await chrome.tabs.sendMessage(tab.id, { type: "overlay", png: result.overlay, latencyUs: result.profile.latency_us });
     await chrome.action.setBadgeText({ tabId: tab.id, text: "✓" });
   } catch (error) {
-    await chrome.tabs.sendMessage(tab.id, { type: "error", message: String(error.message || error) });
     await chrome.action.setBadgeText({ tabId: tab.id, text: "err" });
+    await chrome.tabs.sendMessage(tab.id, { type: "error", message: String(error.message || error) }).catch(() => {});
   }
 });

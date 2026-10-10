@@ -171,6 +171,9 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     return 0 if all(row.solved_ok and row.parsed_ok is not False for row in rows) else 1
 
 
+REQUEST_TIMEOUT_S = 30
+
+
 class SolveHandler(BaseHTTPRequestHandler):
     """REST backend for the browser extension.
 
@@ -178,6 +181,8 @@ class SolveHandler(BaseHTTPRequestHandler):
     ``POST /pinpoint`` ``{"clues": [str, ...]}``           -> ranked categories
     ``GET  /health``                                        -> ``{"status": "ok"}``
     """
+
+    timeout = REQUEST_TIMEOUT_S  # socket deadline: a stalled client cannot hold the one-request-at-a-time server
 
     def _send(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
         body = json.dumps(payload).encode("utf-8")

@@ -91,6 +91,14 @@ def _inflections(word: str, pos: str) -> set[str]:
     return {base + "er", base + "est"}
 
 
+def _irregular_forms(wn: WordNetCorpusReader, pos: str) -> list[str]:
+    """WordNet's irregular forms (GEESE, RAN); NLTK keeps them in a private map, so fail clearly if it moves."""
+    exceptions = getattr(wn, "_exception_map", None)
+    if exceptions is None:
+        raise RuntimeError("this NLTK version no longer exposes WordNet's exception lists (_exception_map)")
+    return list(exceptions[pos])
+
+
 @lru_cache(maxsize=4)
 def word_forms(min_length: int = 3) -> frozenset[str]:
     """Dictionary words plus their inflections (DOWNLOADED, GEESE), upper-cased.
@@ -105,5 +113,5 @@ def word_forms(min_length: int = 3) -> frozenset[str]:
             for lemma in synset.lemma_names():
                 if lemma.isalpha() and lemma.isascii():
                     forms |= {f.upper() for f in _inflections(lemma, pos) if wn.morphy(f, pos) == lemma}
-        forms |= {f.upper() for f in wn._exception_map[pos] if f.isalpha() and f.isascii()}
+        forms |= {f.upper() for f in _irregular_forms(wn, pos) if f.isalpha() and f.isascii()}
     return frozenset(form for form in forms if len(form) >= min_length)
