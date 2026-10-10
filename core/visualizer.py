@@ -94,8 +94,9 @@ def draw_relation(canvas: np.ndarray, center: tuple[int, int], size: int, relati
     thickness = max(2, size // 8)
     cv2.rectangle(canvas, (x - h, y - h), (x + h, y + h), WHITE, -1)
     if relation == "=":
-        cv2.line(canvas, (x - q, y - q // 2), (x + q, y - q // 2), INK, thickness, cv2.LINE_AA)
-        cv2.line(canvas, (x - q, y + q // 2), (x + q, y + q // 2), INK, thickness, cv2.LINE_AA)
+        gap = q * 3 // 4  # LinkedIn's '=' bars sit apart, with a clear gap at the centre
+        cv2.line(canvas, (x - q, y - gap), (x + q, y - gap), INK, thickness, cv2.LINE_AA)
+        cv2.line(canvas, (x - q, y + gap), (x + q, y + gap), INK, thickness, cv2.LINE_AA)
     else:
         cv2.line(canvas, (x - q, y - q), (x + q, y + q), INK, thickness, cv2.LINE_AA)
         cv2.line(canvas, (x - q, y + q), (x + q, y - q), INK, thickness, cv2.LINE_AA)

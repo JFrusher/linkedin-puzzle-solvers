@@ -11,8 +11,12 @@ from solvers.zip.solver import Cell, ZipBoard
 
 DARK = 100
 """Grey level below which a pixel counts as ink (walls, checkpoint discs)."""
-WALL_FRACTION = 0.05
-"""A boundary whose dark band is thicker than this fraction of a cell is a wall."""
+WALL_FRACTION = 0.075
+"""A boundary whose dark band is thicker than this fraction of a cell is a wall.
+
+Measured: walls are at least 0.097 (synthetic) and 0.194 (real); a checkpoint disc reaching into the band
+reaches 0.051.
+"""
 
 
 class ZipVisionParser(BaseVisionParser[ZipBoard, list[Cell]]):

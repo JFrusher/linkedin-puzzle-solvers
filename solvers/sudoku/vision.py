@@ -9,8 +9,8 @@ from core import visualizer
 from core.vision_base import GRID_SIDE, BaseVisionParser, recognize_glyphs
 from solvers.sudoku.solver import SIZE, Cell, Grid, SudokuBoard
 
-INK_FRACTION = 0.02
-"""Cells with less than this fraction of dark pixels are empty."""
+INK_FRACTION = 0.005
+"""Cells with less than this fraction of dark pixels are empty: empty cells measure 0, a real "1" 0.016."""
 
 
 class SudokuVisionParser(BaseVisionParser[SudokuBoard, Grid]):
