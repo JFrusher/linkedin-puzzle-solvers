@@ -21,8 +21,6 @@ onto the original image.
 | **Mini Sudoku** (6×6) | Ink test + per-cell EasyOCR digits | CNF exactly-one encoding solved by MiniSat (PySAT) |
 | **Patches** (Rectangles) | Coloured badges: a '+' badge holds the area (EasyOCR), a solid icon's aspect gives the shape | Exact cover on Dancing Links |
 
-> 📸 **Demo placeholder:** `docs/demo.gif` — screenshot → overlay round-trip in the browser extension.
->
 Solved overlays on real LinkedIn screenshots (`tests/fixtures/real/`):
 
 | Queens | Zip | Tango |
@@ -112,6 +110,10 @@ python main.py serve                                        # REST backend for t
 streamlit run web_app/app.py                                # interactive playground
 ```
 
+Typed boards (`--text`, or "Type the board" in the playground) skip vision for Wend and Crossclimb. Wend: one
+row of letters per line, `#` for a wall, then the word lengths. Crossclimb: the word length, the shared
+top/bottom clue, then the middle clues. See `examples/`.
+
 The first OCR or embedding call downloads the EasyOCR weights (GitHub) and `all-MiniLM-L6-v2` (Hugging Face).
 The Docker image bakes both in:
 
@@ -171,7 +173,7 @@ The extension does not rely on LinkedIn's DOM class names. It runs the same visi
 | Game | Formulation | Worst case | In practice |
 |---|---|---|---|
 | Queens | Exact cover: 3N primary items (row, column, region) and (N−1)² secondary 2×2 windows encoding non-adjacency | O(N!) branches (NP-complete) | MRV column choice; ≤ N + a few nodes on generated boards |
-| Zip | Hamiltonian path through ordered checkpoints; A* over (head, visited bitmask, next checkpoint) | O(4^{N²}) states (NP-complete) | f = g + max(unvisited, Manhattan chain) is exact on feasible states. Flood-fill and degree-2 pruning cut dead ends |
+| Zip | Hamiltonian path through ordered checkpoints; A* over (head, visited bitmask, next checkpoint) | O(4^{N²}) states (NP-complete) | f = g + max(unvisited, Manhattan chain) is exact on feasible states. Connectivity, Tarjan cut-cell and degree-2 checks cut dead ends; repeated states are expanded once |
 | Tango | SAT: N² vars; sequential-counter cardinality for N/2 per line; (¬a∨¬b∨¬c)∧(a∨b∨c) per triple; ⇔ / ⊕ for signs | O(2^{N²}) | MiniSat CDCL, tens of decisions |
 | Pinpoint | C = (1/K) Σ Embed(clueᵢ); score = cos(C, Embed(h)) × coverage(h) over hypernyms h | O(K · H · d) | H ≈ hundreds of hypernyms, d = 384 |
 | Crossclimb | Top-25 gloss-similar words per clue; branch-and-bound best-score path in the Hamming-1 graph; then the top/bottom pair one letter from each end that best fits the shared clue | O(K! · 25^K) | Bounded by best-remaining-score; sparse graph; end pairs are tens of candidates |
@@ -212,25 +214,30 @@ like the real game.
 | patches | 7x7 | ✅ | ✅ | 1,492 | 43.8 | 21 |
 | patches | real screenshot (8x8) | ✅ | ✅ | 2,052 | 72.6 | 16 |
 
-Queens meets the < 1 ms target up to 12×12 on this run (12×12: 746 µs); the real 9×9 board takes 1.1 ms because its huge yellow region leaves DLX more branching (81 nodes). Zip on
-sparse boards (few numbers, no walls) is the hardest case; its numbers are in `docs/IMPROVEMENTS.md`. Pinpoint and Crossclimb latencies come from the CI benchmark (they need the
-SBERT model). The **Benchmark** workflow re-runs the whole suite daily and publishes the table as a job summary
-and an artifact.
+Queens meets the < 1 ms target up to 12×12 on this run (12×12: 746 µs); the real 9×9 board takes 1.1 ms
+because its large yellow region leaves DLX more branching (81 nodes). Zip on sparse boards (few numbers, no
+walls) is the hardest case; its numbers are in `docs/IMPROVEMENTS.md`. Pinpoint and Crossclimb latencies come
+from the CI benchmark, because they need the SBERT model. The **Benchmark** workflow re-runs the whole suite
+daily and publishes the table as a job summary and an artifact.
 
 ---
 
 ## Explainable output
 
-Every run returns a deduction log, rendered as Markdown in the CLI or as JSON over REST:
+Every run returns a deduction log, rendered as Markdown in the CLI or as JSON over REST. Excerpts from the real
+boards in `tests/fixtures/real/`:
 
 ```text
-Queens 8×8 (seed 3)
-| 4  | Single Choice | (5,5) | Cell (5, 5) must be a Queen because Region 6 has no other valid slot   |
-Tango 6×6 (seed 4)
-| 9  | No Three      | (4,3) | Cell (4, 3) must be sun because (2, 3) and (3, 3) are both moon        |
-| 10 | SAT           | (0,0) | Cell (0, 0) must be sun because the SAT model fixes it; no single rule applies |
-| 11 | Relation      | (1,0) | Cell (1, 0) must be sun because of the '=' sign with (0, 0)            |
-| 14 | Balance       | (2,4) | Cell (2, 4) must be sun because its line already holds 3 moons         |
+Queens
+| 2  | Single Choice | (2,6) | Cell (2, 6) must be a Queen because Column 6 has no other valid slot
+| 4  | Shared Attack | (5,8) | every slot left in Row 8 attacks [(5, 8), (6, 7), (6, 8), (7, 7), (7, 8)], so none of them can be a Queen
+Tango
+| 9  | No Three      | (1,1) | Cell (1, 1) must be sun because (1, 0) and (1, 2) are both moon
+| 12 | Sign Balance  | (1,4) | Cell (1, 4) must be sun because its = pair with (1, 5) needs two matching symbols but the line has room for 1 more moon
+| 17 | Balance       | (4,2) | Cell (4, 2) must be sun because its line already holds 3 moons
+Patches
+| 1  | Only Fit      | (6,5) | clue 12 at (6, 5) takes the 2x6 patch at (6, 2) because it is the only rectangle left that fits the clue
+| 5  | Try and Fail  | (1,2) | clue 6 at (1, 2) cannot take the 2x3 patch at (0, 2): a few steps later a clue has no rectangle or a cell cannot be covered
 ```
 
 Queens, Tango, Wend, Mini Sudoku and Patches replay the solution with human rules (single choice, relations,
@@ -245,10 +252,12 @@ only when no single rule forces the move.
 core/          vision_base · solver_base · explainer · visualizer · dlx · nlp (SBERT + WordNet)
 solvers/       queens · zip · tango · pinpoint · crossclimb · wend · sudoku · patches  (+ registry in __init__)
 bench/         benchmark_runner · synthetic (seeded generators + skewed renderers) · real (screenshot boards) · gifs
-tests/         one suite per game + core
-web_app/       Streamlit playground (Raw · Contours · HSV Masks · Graph Nodes tabs)
+tests/         one suite per game + core, real screenshots (fixtures/real), typed boards, animations
+web_app/       Streamlit playground (sample, upload or typed board · Raw · Contours · HSV Masks · Graph Nodes tabs)
 extension/     Manifest V3: background.js (capture + REST) · content.js (overlay)
 main.py        CLI: solve · stream · benchmark · serve
+examples/      typed boards for --text (Wend, Crossclimb)
+docs/          solved overlays · How-it-works GIFs · social preview · IMPROVEMENTS.md (measurements)
 ```
 
 ---
@@ -265,7 +274,4 @@ main.py        CLI: solve · stream · benchmark · serve
   ("wealths") get in. Without the word lengths the solver finds *a* tiling, not necessarily the intended one:
   pass `--slots` when the slot rows are not in the board screenshot, or type the board with its lengths.
   The REST server takes one image.
-- **Typed boards** (`--text`, or "Type the board" in the playground) skip vision for Wend and Crossclimb.
-  Wend: one row of letters per line, `#` for a wall, then the word lengths. Crossclimb: the word length, the
-  shared top/bottom clue, then the middle clues. See `examples/`.
 - **Zip** uses A* with backtracking order and pruning. It does not use a bidirectional search.
