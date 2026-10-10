@@ -10,8 +10,8 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY requirements.txt .
-# CPU-only torch keeps the image ~2 GB smaller than the default CUDA build.
-RUN pip install torch --index-url https://download.pytorch.org/whl/cpu \
+# CPU-only torch + torchvision from one index: a PyPI torchvision does not match +cpu torch.
+RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu \
     && pip install -r requirements.txt
 
 # Bake model weights and corpora into the image so containers start offline.
