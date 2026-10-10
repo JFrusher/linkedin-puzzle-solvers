@@ -2,6 +2,7 @@
 
 import http.client
 import json
+import socket
 import threading
 from collections.abc import Iterator
 from http.server import HTTPServer
@@ -97,3 +98,19 @@ def test_server_answers_bad_content_length(server: str) -> None:
 def test_server_rejects_non_object_body(server: str) -> None:
     status, _ = _post(server, b"[]", {"Content-Type": "application/json", "Content-Length": "2"})
     assert status == 400
+
+
+def test_stalled_client_does_not_block_the_server(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(SolveHandler, "timeout", 0.5)
+    httpd = HTTPServer(("127.0.0.1", 0), SolveHandler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    port = httpd.server_address[1]
+    stalled = socket.create_connection(("127.0.0.1", port))  # connects, never sends a request
+    try:
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        connection.request("GET", "/health")
+        assert connection.getresponse().status == 200
+    finally:
+        stalled.close()
+        httpd.shutdown()
+        httpd.server_close()

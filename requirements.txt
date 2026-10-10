@@ -13,6 +13,7 @@ nltk>=3.8
 rich>=13.7
 streamlit>=1.35
 pandas>=2.2
+pillow>=10.0  # README animations (python -m bench.gifs)
 
 # Development
 pytest>=8.0

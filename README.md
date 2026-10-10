@@ -16,8 +16,8 @@ onto the original image.
 | **Zip** (Pathfinder) | Hough circles + EasyOCR digits, wall-thickness probes | A* with connectivity and degree pruning |
 | **Tango** (Sun & Moon) | Symbol colour (orange sun, blue moon) + ink at each edge sign's centre (× vs =) | CNF reduction solved by MiniSat (PySAT) |
 | **Pinpoint** (Categories) | Text stream | Sentence-BERT moving centroid × WordNet hypernyms + word-play checks (join word, many senses) |
-| **Crossclimb** (Word Ladder) | Letter-box rows + EasyOCR clues | SBERT clue answering + Hamming-1 ladder search + shared-clue end pair |
-| **Wend** (Word Partitioning) | Per-tile EasyOCR on tight crops, grey wall tiles, slot rows (same or separate screenshot) | Trie-guided DFS tiling over WordNet words and their inflections + flood-fill island pruning |
+| **Crossclimb** (Word Ladder) | Letter-box rows + EasyOCR clues, or typed in | SBERT clue answering + Hamming-1 ladder search + shared-clue end pair |
+| **Wend** (Word Partitioning) | Per-tile EasyOCR on tight crops, grey wall tiles, slot rows (same or separate screenshot), or typed in | Trie-guided DFS tiling over WordNet words and their inflections + flood-fill island pruning |
 | **Mini Sudoku** (6×6) | Ink test + per-cell EasyOCR digits | CNF exactly-one encoding solved by MiniSat (PySAT) |
 | **Patches** (Rectangles) | Coloured badges: a '+' badge holds the area (EasyOCR), a solid icon's aspect gives the shape | Exact cover on Dancing Links |
 
@@ -33,6 +33,68 @@ Solved overlays on real LinkedIn screenshots (`tests/fixtures/real/`):
 
 ---
 
+## How it works
+
+Each animation runs one real LinkedIn screenshot through the whole pipeline. First the vision stages: find
+the board, detect the grid, read the cells. Then the solver's own deduction log, replayed step by step: the
+ringed cells are the ones each step decides, and red marks are cells or rectangles ruled out. Regenerate them
+with `python -m bench.gifs`.
+
+### Queens: exact cover with Dancing Links
+
+![Queens: find the board, read the regions, replay the deductions](docs/gifs/queens.gif)
+
+One queen per row, column and colour region, and no two queens touching: that is an exact-cover problem.
+The solver runs Knuth's Algorithm X on Dancing Links, with rows, columns and regions as primary items and
+every 2×2 window as a secondary item for the no-touch rule. The replay uses the rules a person would:
+Single Choice, Shared Attack (every slot left in a line attacks the same cells) and Confinement (k regions
+that fit inside k lines claim those lines).
+
+### Zip: Hamiltonian path with A*
+
+![Zip: read discs and walls, then grow the path checkpoint by checkpoint](docs/gifs/zip.gif)
+
+The path must visit every cell once and pass the numbers in order. A* searches over (head, visited cells,
+next checkpoint); because every move costs one and the path length is fixed, the heuristic is exact on any
+state that can still be finished. States are cut as soon as the unvisited cells split apart, a cut cell
+(found with Tarjan's algorithm) cannot be passed, or a cell is left with fewer than two exits.
+
+### Tango: SAT
+
+![Tango: read suns, moons and signs, then replay each forced cell](docs/gifs/tango.gif)
+
+One Boolean per cell (sun or moon). Each line holds exactly three of each, encoded with sequential-counter
+cardinality constraints, plus a clause pair per window of three cells and an equivalence or exclusive-or for
+each = or × sign. MiniSat solves it in under a millisecond. The replay explains every cell with No Three,
+Balance, Relation and Sign Balance.
+
+### Mini Sudoku: SAT, explained with singles
+
+![Mini Sudoku: read the givens, then fill each cell by a single](docs/gifs/mini-sudoku.gif)
+
+216 variables, one per cell and digit, with exactly-one clauses for every cell and for every digit in every
+row, column and 2×3 box. The replay uses naked singles (one digit left for a cell) and hidden singles (one
+cell left for a digit); this board needs only naked singles.
+
+### Patches: exact cover with Dancing Links
+
+![Patches: read the clue badges, then place each rectangle](docs/gifs/patches.gif)
+
+Every rectangle that fits a clue's area or shape and holds no other clue becomes a row. Its columns are the
+cells it covers plus the clue itself, and Dancing Links picks rows that cover everything exactly once. The
+replay uses Only Fit, Only Cover and Try and Fail: a red outline is a rectangle that leads to a dead end a
+few steps later.
+
+### Wend: trie search and exact tiling
+
+![Wend: read letters and walls, then place each word](docs/gifs/wend.gif)
+
+A trie of WordNet words and their inflections drives a depth-first search that lists every word path on the
+board. An exact tiling then picks words of the slot lengths that cover every tile. Nook (a tile with one
+open neighbour must start or end a word) and Only Word explain each placement.
+
+---
+
 ## Quick start
 
 ```bash
@@ -43,6 +105,7 @@ python -m nltk.downloader wordnet
 python main.py solve --game queens --image board.png        # writes board_solved.png
 python main.py solve --game zip --image zip.png --json      # machine-readable result
 python main.py solve --game wend --image wend.png --slots slots.png   # word slots in their own screenshot
+python main.py solve --game wend --text examples/wend.txt   # or type the board in (Wend, Crossclimb)
 python main.py stream --game pinpoint                       # type clues one at a time
 python main.py benchmark --game all                         # latency / memory / accuracy
 python main.py serve                                        # REST backend for the extension
@@ -170,8 +233,8 @@ Tango 6×6 (seed 4)
 | 14 | Balance       | (2,4) | Cell (2, 4) must be sun because its line already holds 3 moons         |
 ```
 
-Queens, Tango, Mini Sudoku and Patches replay the solution with human rules (single choice, relations,
-no-three, balance, naked and hidden singles, only fit and only cover). They label a step `Search` or `SAT`
+Queens, Tango, Wend, Mini Sudoku and Patches replay the solution with human rules (single choice, relations,
+no-three, balance, naked and hidden singles, only fit, only cover, try and fail). They label a step `Search` or `SAT`
 only when no single rule forces the move.
 
 ---
@@ -181,7 +244,7 @@ only when no single rule forces the move.
 ```text
 core/          vision_base · solver_base · explainer · visualizer · dlx · nlp (SBERT + WordNet)
 solvers/       queens · zip · tango · pinpoint · crossclimb · wend · sudoku · patches  (+ registry in __init__)
-bench/         benchmark_runner · synthetic (seeded generators + skewed renderers)
+bench/         benchmark_runner · synthetic (seeded generators + skewed renderers) · real (screenshot boards) · gifs
 tests/         one suite per game + core
 web_app/       Streamlit playground (Raw · Contours · HSV Masks · Graph Nodes tabs)
 extension/     Manifest V3: background.js (capture + REST) · content.js (overlay)
@@ -200,7 +263,9 @@ main.py        CLI: solve · stream · benchmark · serve
 - **Wend** words use orthogonal adjacency. Inflections (DOWNLOADED, CARRIED) are generated by English
   spelling rules and kept only when WordNet maps them back to a lemma, so a few odd forms of mass nouns
   ("wealths") get in. Without the word lengths the solver finds *a* tiling, not necessarily the intended one:
-  pass `--slots` when the slot rows are not in the board screenshot. The REST server takes one image.
-- **Patches** explanations fall back to `Search` for 5–7% of patches when a clue gives only a shape (2 of 12
-  on the real board); the answers are still exact.
+  pass `--slots` when the slot rows are not in the board screenshot, or type the board with its lengths.
+  The REST server takes one image.
+- **Typed boards** (`--text`, or "Type the board" in the playground) skip vision for Wend and Crossclimb.
+  Wend: one row of letters per line, `#` for a wall, then the word lengths. Crossclimb: the word length, the
+  shared top/bottom clue, then the middle clues. See `examples/`.
 - **Zip** uses A* with backtracking order and pruning. It does not use a bidirectional search.

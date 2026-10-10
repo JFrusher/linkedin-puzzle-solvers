@@ -32,7 +32,7 @@ def test_candidates_respect_shape_and_other_clues() -> None:
 @pytest.mark.parametrize("seed", range(3))
 def test_explanation_places_every_patch_of_the_answer(seed: int) -> None:
     board, truth = generate_patches(6, seed)
-    steps = PatchesSolver().run(board).explanation.steps
+    steps = [s for s in PatchesSolver().run(board).explanation.steps if s.rule != "Try and Fail"]  # those place nothing
     assert len(steps) == len(board.clues)
     assert {s.cell for s in steps} == {clue.cell for clue in board.clues}
     assert {s.message.split(" because")[0] for s in steps} == {
@@ -66,3 +66,15 @@ def test_board_validation() -> None:
 def test_vision_reads_areas_and_shapes(n: int, seed: int) -> None:
     board, _ = generate_patches(n, seed)
     assert PatchesVisionParser().parse(render_patches(board, seed)) == board
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_try_and_fail_is_sound_and_leaves_no_search(seed: int) -> None:
+    board, truth = generate_patches(6, seed)
+    steps = PatchesSolver().run(board).explanation.steps
+    true_patches = {
+        f"clue {p.clue.label} at {p.clue.cell} cannot take the {p.height}x{p.width} patch at ({p.top}, {p.left}):"
+        for p in truth
+    }
+    assert not any(s.message.startswith(tuple(true_patches)) for s in steps if s.rule == "Try and Fail")
+    assert all(s.rule != "Search" for s in steps)

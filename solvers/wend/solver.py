@@ -270,3 +270,17 @@ def is_valid_solution(board: WendBoard, words: list[WordPlacement], dictionary: 
         if any(abs(a[0] - b[0]) + abs(a[1] - b[1]) != 1 for a, b in zip(placement.cells, placement.cells[1:])):
             return False
     return True
+
+
+def board_from_text(text: str) -> WendBoard:
+    """A typed board: one row of letters per line, ``#`` for a wall, then optionally a line of word lengths.
+
+    ``##U#####`` ... ``#####D##`` followed by ``6 7 8 9 10``.
+    """
+    lines = [line.strip().upper() for line in text.splitlines() if line.strip()]
+    lengths: tuple[int, ...] = ()
+    if lines and lines[-1].replace(",", " ").replace(" ", "").isdigit():
+        lengths = tuple(int(part) for part in lines.pop().replace(",", " ").split())
+    if not lines:
+        raise ValueError("type the board as rows of letters, with # for walls")
+    return WendBoard(tuple(tuple(None if ch == "#" else ch for ch in line) for line in lines), lengths)

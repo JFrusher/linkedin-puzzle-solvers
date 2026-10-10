@@ -31,6 +31,8 @@ def _gray(image: np.ndarray) -> np.ndarray:
 def _symbol(cell: np.ndarray) -> Symbol:
     """Suns are orange and moons blue, in LinkedIn's icons and in ours, so compare blue with red."""
     coloured = cv2.cvtColor(cell[..., :3], cv2.COLOR_BGR2HSV)[..., 1] > SATURATED
+    if not coloured.any():
+        raise ValueError("a Tango cell holds marks but no coloured sun or moon")
     blue, _, red = (float(cell[..., i][coloured].mean()) for i in range(3))
     return Symbol.MOON if blue > red else Symbol.SUN
 
@@ -74,7 +76,10 @@ class TangoVisionParser(BaseVisionParser[TangoBoard, Grid]):
                     centre = gray[y - core : y + core, x - core : x + core]
                     if (centre < SIGN_DARK).mean() < SIGN_MIN_INK:
                         continue
-                    found.append(Constraint((r, c), (r + dr, c + dc), _relation(inner_ink(probe < SIGN_DARK))))
+                    ink = inner_ink(probe < SIGN_DARK)
+                    if not ink.any():
+                        continue  # only lines running through the probe: no sign here
+                    found.append(Constraint((r, c), (r + dr, c + dc), _relation(ink)))
         return tuple(found)
 
     def overlay_layer(self, image: np.ndarray, board: TangoBoard, solution: Grid) -> np.ndarray:

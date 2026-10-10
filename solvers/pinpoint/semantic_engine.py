@@ -58,6 +58,7 @@ class SemanticEngine:
         self._clue_vectors.clear()
         self._hypernyms.clear()
         self._joins.clear()
+        self.candidate_count = 0
 
     @property
     def centroid(self) -> np.ndarray:

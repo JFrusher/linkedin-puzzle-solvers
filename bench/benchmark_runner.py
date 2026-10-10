@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import statistics
 from collections.abc import Callable, Iterator
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -22,6 +22,7 @@ from solvers.sudoku.solver import is_valid_solution as sudoku_valid
 from solvers.tango.solver import is_valid_solution as tango_valid
 from solvers.wend.solver import MIN_WORD_LENGTH
 from solvers.wend.solver import is_valid_solution as wend_valid
+from solvers.wend.vision import WendVisionParser
 from solvers.zip.solver import is_valid_solution as zip_valid
 
 
@@ -177,10 +178,12 @@ REAL_CHECKS: dict[str, tuple[Any, Callable[[Any], bool], Callable[[Any], bool]]]
         lambda parsed: parsed == real.PATCHES,
         lambda solution: patches_valid(real.PATCHES, solution),
     ),
-    # The word lengths are in a separate screenshot, so only the letters are compared.
+    # The word lengths are in a separate screenshot, read here so the whole board is compared.
     "wend": (
         real.WEND,
-        lambda parsed: parsed.letters == real.WEND.letters,
+        lambda parsed: (
+            replace(parsed, word_lengths=WendVisionParser().slot_lengths(real.image("wend-slots"))) == real.WEND
+        ),
         lambda solution: sorted(p.word for p in solution) == sorted(real.WEND_ANSWER),
     ),
 }

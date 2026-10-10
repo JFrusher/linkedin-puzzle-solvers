@@ -74,6 +74,23 @@ def solve_image(game_name: str, image: np.ndarray, slots: np.ndarray | None = No
     }
 
 
+def solve_text(game_name: str, text: str) -> dict[str, Any]:
+    """Build the board from typed text and solve it; same payload as ``solve_image`` without an overlay."""
+    game = get_game(game_name)
+    if game.text is None:
+        raise ValueError(f"{game_name} cannot be typed in; typed boards work for {', '.join(TYPED_GAMES)}")
+    board = game.text(text)
+    result = game.solver().run(board)
+    return {
+        "game": game_name,
+        "board": board,
+        "solution": result.solution,
+        "profile": result.profile,
+        "steps": result.explanation.steps,
+        "markdown": result.explanation.to_markdown(),
+    }
+
+
 def encode_png(image: np.ndarray) -> str:
     ok, buffer = cv2.imencode(".png", image)
     if not ok:
@@ -89,15 +106,31 @@ def decode_image(data: str) -> np.ndarray:
     return image
 
 
+TYPED_GAMES = [name for name, game in GAMES.items() if game.text]
+
 # --------------------------------------------------------------------------- commands
 
 
 def cmd_solve(args: argparse.Namespace) -> int:
+    if args.text and args.slots:
+        raise ValueError("--slots goes with --image; type the word lengths on the board's last line instead")
+    if args.text:
+        return _print_outcome(
+            args,
+            solve_text(
+                args.game, sys.stdin.read() if args.text == "-" else Path(args.text).read_text(encoding="utf-8")
+            ),
+        )
     image = BaseVisionParser.load_image(args.image)
     slots = BaseVisionParser.load_image(args.slots) if args.slots else None
     outcome = solve_image(args.game, image, slots)
     output = Path(args.output) if args.output else Path(args.image).with_name(f"{Path(args.image).stem}_solved.png")
     cv2.imwrite(str(output), visualizer.composite(image, outcome["layer"]))
+    outcome["overlay"] = str(output)
+    return _print_outcome(args, outcome)
+
+
+def _print_outcome(args: argparse.Namespace, outcome: dict[str, Any]) -> int:
     if args.json:
         payload = {key: to_jsonable(value) for key, value in outcome.items() if key not in ("layer", "markdown")}
         print(json.dumps(payload, indent=2))
@@ -109,7 +142,10 @@ def cmd_solve(args: argparse.Namespace) -> int:
     table.add_row("Solve latency", f"{profile.latency_us:,.1f} µs")
     table.add_row("Peak memory", f"{profile.peak_memory_kb:,.1f} KiB")
     table.add_row("Nodes expanded", f"{profile.nodes_expanded:,}")
-    table.add_row("Overlay", str(output))
+    if "overlay" in outcome:
+        table.add_row("Overlay", outcome["overlay"])
+    if args.game in TYPED_GAMES:
+        table.add_row("Answer", ", ".join(item.word for item in outcome["solution"]))
     console.print(table)
     console.print(outcome["markdown"])
     return 0
@@ -138,6 +174,9 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     return 0 if all(row.solved_ok and row.parsed_ok is not False for row in rows) else 1
 
 
+REQUEST_TIMEOUT_S = 30
+
+
 class SolveHandler(BaseHTTPRequestHandler):
     """REST backend for the browser extension.
 
@@ -145,6 +184,8 @@ class SolveHandler(BaseHTTPRequestHandler):
     ``POST /pinpoint`` ``{"clues": [str, ...]}``           -> ranked categories
     ``GET  /health``                                        -> ``{"status": "ok"}``
     """
+
+    timeout = REQUEST_TIMEOUT_S  # socket deadline: a stalled client cannot hold the one-request-at-a-time server
 
     def _send(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -215,7 +256,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     solve = commands.add_parser("solve", help="solve a screenshot and write an overlay image")
     solve.add_argument("--game", required=True, choices=[name for name, game in GAMES.items() if game.parser])
-    solve.add_argument("--image", required=True, help="path to the screenshot")
+    source = solve.add_mutually_exclusive_group(required=True)
+    source.add_argument("--image", help="path to the screenshot")
+    source.add_argument("--text", help=f"typed board ({', '.join(TYPED_GAMES)}): a text file, or - for stdin")
     solve.add_argument("--slots", help="Wend only: screenshot of the word slots, when they are not in --image")
     solve.add_argument("--output", help="overlay path (default: <image>_solved.png)")
     solve.add_argument("--json", action="store_true", help="print the full result as JSON")

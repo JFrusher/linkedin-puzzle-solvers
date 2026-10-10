@@ -172,3 +172,12 @@ def is_valid_ladder(board: CrossclimbBoard, rungs: list[Rung]) -> bool:
     if any(len(r.word) != board.word_length for r in rungs):
         return False
     return all(hamming(a.word, b.word) == 1 for a, b in zip(rungs, rungs[1:]))
+
+
+def board_from_text(text: str) -> CrossclimbBoard:
+    """A typed board: the word length, then the clue shared by the top and bottom words, then one middle clue
+    per line, in any order."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 4 or not lines[0].isdigit():
+        raise ValueError("type the word length, then the shared top/bottom clue, then the middle clues, one per line")
+    return CrossclimbBoard(clues=tuple(lines[2:]), end_clue=lines[1], word_length=int(lines[0]))

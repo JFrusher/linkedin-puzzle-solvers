@@ -9,6 +9,7 @@ from bench.synthetic import CROSSCLIMB_ANSWER, CROSSCLIMB_SAMPLE, render_crosscl
 from solvers.crossclimb.solver import (
     CrossclimbBoard,
     CrossclimbSolver,
+    Rung,
     end_candidates,
     hamming,
     is_valid_ladder,
@@ -69,3 +70,20 @@ def test_vision_reads_rows_and_clues() -> None:
     assert parsed.word_length == CROSSCLIMB_SAMPLE.word_length
     assert word_recall(parsed.end_clue, CROSSCLIMB_SAMPLE.end_clue) >= 0.8
     assert all(word_recall(p, t) >= 0.8 for p, t in zip(parsed.clues, CROSSCLIMB_SAMPLE.clues, strict=True))
+
+
+def test_overlay_places_rows_by_position_without_a_second_ocr_pass(monkeypatch: pytest.MonkeyPatch) -> None:
+    def no_ocr(_: np.ndarray) -> str:
+        raise AssertionError("overlay must not run OCR again")
+
+    monkeypatch.setattr("solvers.crossclimb.vision.read_sentence", no_ocr)
+    # Edited and duplicate clues: matching by OCR text would fail; screen order still places every row.
+    board = CrossclimbBoard(clues=("same clue",) * 5, end_clue=CROSSCLIMB_SAMPLE.end_clue, word_length=4)
+    ladder = [Rung(board.end_clue, CROSSCLIMB_ANSWER[0], 1.0)]
+    ladder += [Rung("same clue", word, 1.0) for word in CROSSCLIMB_ANSWER[1:-1]]
+    ladder += [Rung(board.end_clue, CROSSCLIMB_ANSWER[-1], 1.0)]
+    drawn: list[str] = []
+    monkeypatch.setattr("core.visualizer.draw_label", lambda _canvas, text, *_args: drawn.append(text))
+    CrossclimbVisionParser().overlay_layer(render_crossclimb(CROSSCLIMB_SAMPLE), board, ladder)
+    # Rows top to bottom: each row's letters, then its ladder rank.
+    assert "".join(drawn) == "".join(f"{word}#{rank}" for rank, word in enumerate(CROSSCLIMB_ANSWER, start=1))

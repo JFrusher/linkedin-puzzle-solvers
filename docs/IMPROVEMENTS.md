@@ -143,13 +143,15 @@ so Dancing Links moved from the Queens solver to `core/dlx.py`. Their generators
 | Game | Size | Metric | Value |
 |---|---|---|---|
 | Mini Sudoku | 6x6 | `SAT` steps | 0% (Naked Single 507, Hidden Single 12; 9–11 givens) |
-| Patches | 5x5 | `Search` patches | 5% (Only Fit 130, Only Cover 45, Search 10) |
-| Patches | 6x6 | `Search` patches | 7% (Only Fit 189, Only Cover 53, Search 18) |
-| Patches | 7x7 | `Search` patches | 6% (Only Fit 215, Only Cover 108, Search 20) |
+| Patches | 5x5 | `Search` patches | 0% (Only Fit 134, Only Cover 51, Try and Fail 30) |
+| Patches | 6x6 | `Search` patches | 0% (Only Fit 198, Only Cover 62, Try and Fail 61) |
+| Patches | 7x7 | `Search` patches | 0% (Only Fit 228, Only Cover 115, Try and Fail 44) |
 
-Patches boards follow the real game: a clue gives an area or a shape, not both. With area-only clues the
-rules covered every patch; shape-only clues leave 5–7% to `Search`. A Try and Fail rule, as in Queens, Tango
-and Wend, would be the next step.
+Patches boards follow the real game: a clue gives an area or a shape, not both. Shape-only clues first left
+5–7% of patches to `Search`. Try and Fail, as in Queens, Tango and Wend, rules out a rectangle when Only Fit
+and Only Cover steps after it leave a clue with no rectangle or a cell nothing can cover. That brought
+`Search` to 0%; the real board needs two Try and Fail steps. No ruled-out rectangle was ever part of the
+answer over 60 boards.
 
 ## Real screenshots
 
