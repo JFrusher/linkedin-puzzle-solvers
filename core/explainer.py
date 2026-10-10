@@ -46,7 +46,3 @@ class Explainer:
             message = step.message.replace("|", "\\|")
             lines.append(f"| {step.index} | {step.rule} | {cell} | {message} |")
         return "\n".join(lines)
-
-    def to_text(self) -> str:
-        """Render the log as one line per step."""
-        return "\n".join(str(step) for step in self.steps)

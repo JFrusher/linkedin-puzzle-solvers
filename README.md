@@ -109,24 +109,24 @@ The extension does not rely on LinkedIn's DOM class names. It runs the same visi
 
 Below is the median of 25 solves without memory tracing, plus one traced run for peak memory. It was run on a
 shared cloud container with CPython 3.13 on synthetic boards. Vision ✅ means the parser recovered the
-ground-truth board from a perspective-skewed render.
+ground-truth board from a perspective-skewed render. Every board has exactly one answer, like the real game.
 
 | Game | Case | Vision | Solved | Median latency (µs) | Peak memory (KiB) | Nodes |
 |---|---|:---:|:---:|---:|---:|---:|
-| queens | 6x6 | ✅ | ✅ | 174 | 28.1 | 6 |
-| queens | 8x8 | ✅ | ✅ | 308 | 49.7 | 8 |
-| queens | 10x10 | ✅ | ✅ | 494 | 77.9 | 10 |
-| queens | 12x12 | ✅ | ✅ | 991 | 112.4 | 21 |
-| zip | 5x5 | ✅ | ✅ | 826 | 9.1 | 25 |
-| zip | 6x6 | ✅ | ✅ | 2,586 | 12.1 | 77 |
-| zip | 7x7 | ✅ | ✅ | 10,632 | 22.3 | 174 |
-| tango | 6x6 seed 1 | ✅ | ✅ | 939 | 74.7 | 12 |
-| tango | 6x6 seed 2 | ✅ | ✅ | 595 | 74.7 | 20 |
-| tango | 6x6 seed 3 | ✅ | ✅ | 917 | 74.6 | 14 |
-| wend | 5x5 sample | ✅ | ✅ | 1,221 | 42.1 | 363 |
+| queens | 6x6 | ✅ | ✅ | 181 | 28.5 | 6 |
+| queens | 8x8 | ✅ | ✅ | 310 | 50.2 | 9 |
+| queens | 10x10 | ✅ | ✅ | 598 | 78.4 | 10 |
+| queens | 12x12 | ✅ | ✅ | 955 | 113.0 | 12 |
+| zip | 5x5 | ✅ | ✅ | 1,275 | 19.9 | 31 |
+| zip | 6x6 | ✅ | ✅ | 1,779 | 25.9 | 36 |
+| zip | 7x7 | ✅ | ✅ | 6,896 | 40.0 | 81 |
+| tango | 6x6 seed 1 | ✅ | ✅ | 508 | 75.2 | 8 |
+| tango | 6x6 seed 2 | ✅ | ✅ | 498 | 76.1 | 9 |
+| tango | 6x6 seed 3 | ✅ | ✅ | 438 | 75.4 | 2 |
+| wend | 5x5 sample | ✅ | ✅ | 1,148 | 31.0 | 363 |
 
-Queens meets the < 1 ms target up to 12×12 on this run; 12×12 sits right at the boundary (≈ 1.0 ms), and
-DLX node allocation dominates. Pinpoint and Crossclimb latencies come from the CI benchmark (they need the
+Queens meets the < 1 ms target up to 12×12 on this run (12×12: 955 µs); DLX node allocation dominates. Zip on
+sparse boards (few numbers, no walls) is the hardest case; its numbers are in `docs/IMPROVEMENTS.md`. Pinpoint and Crossclimb latencies come from the CI benchmark (they need the
 SBERT model). The **Benchmark** workflow re-runs the whole suite daily and publishes the table as a job summary
 and an artifact.
 
