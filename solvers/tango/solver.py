@@ -115,41 +115,20 @@ class TangoSolver(BaseSolver[TangoBoard, Grid]):
 
     def explain(self, board_state: TangoBoard, solution: Grid) -> None:
         """Replay the solution as human deductions; use the SAT model only where no rule applies."""
-        board = board_state
-        n = board.size
-        known: dict[Cell, Symbol] = dict(board.givens)
+        from solvers.tango import rules  # rules imports this module's types
+
+        n = board_state.size
+        known: dict[Cell, Symbol] = dict(board_state.givens)
         for cell, symbol in sorted(known.items()):
             self.explainer.add("Given", f"Cell {cell} starts as {symbol.value}", cell)
         while len(known) < n * n:
-            deduction = _next_deduction(board, known)
+            deduction = rules.next_deduction(board_state, known)
             if deduction is None:
                 cell = min((r, c) for r in range(n) for c in range(n) if (r, c) not in known)
                 deduction = (cell, solution[cell[0]][cell[1]], "SAT", "the SAT model fixes it; no single rule applies")
             cell, symbol, rule, reason = deduction
             known[cell] = symbol
             self.explainer.add(rule, f"Cell {cell} must be {symbol.value} because {reason}", cell)
-
-
-def _next_deduction(board: TangoBoard, known: dict[Cell, Symbol]) -> tuple[Cell, Symbol, str, str] | None:
-    n = board.size
-    for constraint in board.constraints:
-        for src, dst in ((constraint.a, constraint.b), (constraint.b, constraint.a)):
-            if src in known and dst not in known:
-                symbol = known[src] if constraint.relation is Relation.EQUAL else known[src].other
-                return dst, symbol, "Relation", f"of the '{constraint.relation.value}' sign with {src}"
-    lines = [[(i, j) for j in range(n)] for i in range(n)] + [[(j, i) for j in range(n)] for i in range(n)]
-    for line in lines:
-        for k in range(n - 2):
-            a, b, c = line[k : k + 3]
-            for x, y, target in ((a, b, c), (b, c, a), (a, c, b)):
-                if x in known and y in known and target not in known and known[x] == known[y]:
-                    return target, known[x].other, "No Three", f"{x} and {y} are both {known[x].value}"
-        for symbol in Symbol:
-            if sum(known.get(cell) == symbol for cell in line) == n // 2:
-                for cell in line:
-                    if cell not in known:
-                        return cell, symbol.other, "Balance", f"its line already holds {n // 2} {symbol.value}s"
-    return None
 
 
 def is_valid_solution(board: TangoBoard, grid: Grid) -> bool:

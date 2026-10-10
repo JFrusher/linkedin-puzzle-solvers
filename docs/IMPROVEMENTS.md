@@ -77,6 +77,26 @@ The remaining tail is deep dead branches that no cheap static check found; repea
 measured next step. Solver soundness: 0 mismatches against the true path over 90 one-answer boards, and valid
 paths on 60 sparse boards.
 
+### Tango (done)
+
+`SAT` steps over 40 one-answer boards (the 20-seed baseline was 5%):
+
+| Rules | `SAT` steps | Try and Fail steps |
+|---|---:|---:|
+| Relation, No Three, Balance | 72 | 0 |
+| + Sign Balance | 30 | 0 |
+| + Equal Pair Neighbour | 15 | 0 |
+| + Try and Fail | **0** | 18 |
+
+The soundness test (no deduction may contradict the true grid) caught two overlap bugs in Sign Balance
+before they shipped:
+
+- a chain a×b×c holds two of one symbol, not one of each per pair;
+- an = pair that shares a cell with a counted × pair needs only one more slot.
+
+After the fixes there were 0 wrong deductions over 1,000 boards, and the rules alone filled every cell.
+`solve` keeps SAT (under 1 ms).
+
 ## Rules by game
 
 ### Queens

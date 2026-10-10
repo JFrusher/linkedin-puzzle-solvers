@@ -6,6 +6,7 @@ import pytest
 
 from bench.synthetic import generate_tango, render_tango
 from core.solver_base import UnsolvableError
+from solvers.tango import rules
 from solvers.tango.solver import Constraint, Relation, Symbol, TangoBoard, TangoSolver, is_valid_solution
 from solvers.tango.vision import TangoVisionParser
 
@@ -49,3 +50,25 @@ def test_vision_reads_symbols_and_signs(seed: int) -> None:
 def test_generator_makes_one_answer_boards(seed: int) -> None:
     board, truth = generate_tango(6, seed + 100)
     assert list(islice(TangoSolver().solutions(board), 2)) == [truth]
+
+
+def test_opposite_pair_counts_towards_balance() -> None:
+    # Row 0: two suns plus an unknown × pair at (0,2)-(0,3) already make three suns, so (0,4), (0,5) are moons.
+    board = TangoBoard(
+        6,
+        {(0, 0): Symbol.SUN, (0, 1): Symbol.MOON, (0, 5): Symbol.SUN},
+        (Constraint((0, 2), (0, 3), Relation.OPPOSITE),),
+    )
+    deduction = rules.sign_balance(board, dict(board.givens))
+    assert deduction is not None and deduction[:3] == ((0, 4), Symbol.MOON, "Sign Balance")
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_rules_never_contradict_the_answer(seed: int) -> None:
+    board, truth = generate_tango(6, seed + 300)
+    known = dict(board.givens)
+    while (deduction := rules.next_deduction(board, known)) is not None:
+        cell, symbol, _, _ = deduction
+        assert truth[cell[0]][cell[1]] is symbol
+        known[cell] = symbol
+    assert len(known) == 36
