@@ -134,6 +134,26 @@ wins. TEAM/WORK has only 8 × 9 candidate pairs, so this step is cheap. The samp
 5 October 2026 puzzle, TEAM-REAM-ROAM-FOAM-FORM-WORM-WORK. The middle ladder and the end pair both rely
 on SBERT, which runs in CI; the pair selection logic is also tested locally with a stand-in encoder.
 
+### Mini Sudoku and Patches (new games)
+
+Both reuse existing engines. Mini Sudoku is a SAT encoding like Tango; Patches is exact cover like Queens,
+so Dancing Links moved from the Queens solver to `core/dlx.py`. Their generators make one-answer boards
+(Sudoku removes givens while the answer stays unique; Patches sharpens vague "any" clues until it does).
+
+| Game | Size | Metric | Value |
+|---|---|---|---|
+| Mini Sudoku | 6x6 | `SAT` steps | 0% (Naked Single 507, Hidden Single 12; 9–11 givens) |
+| Patches | 5x5 | `Search` patches | 0% (Only Fit 190) |
+| Patches | 6x6 | `Search` patches | 0% (Only Fit 271, Only Cover 5) |
+| Patches | 7x7 | `Search` patches | 0% (Only Fit 335, Only Cover 8) |
+
+Patches vision first sent the whole top half of a clue cell to the recognizer, which read 80 of 99 areas
+wrong (it added a phantom digit, e.g. "2" as "72"). Cropping tight around the digit fixed all but 3; those
+3 boxes touched the crop edge because grid-line residue from the outer frame was counted as ink. Removing
+blobs that touch the cell edge fixed them and also the "square" icons read as "wide" in corner cells. With
+residue gone, empty halves measure 0 ink and the thinnest "1" measures 0.0199, so the ink threshold is 0.005.
+30 of 30 boards (5×5 to 7×7) now parse exactly.
+
 ### Pinpoint (done)
 
 `solvers/pinpoint/wordplay.py` adds three WordNet-only checks; the measurements are on the real puzzles

@@ -16,7 +16,9 @@ from bench import synthetic
 from core.nlp import dictionary_words
 from solvers import GAMES, get_game
 from solvers.crossclimb.solver import is_valid_ladder
+from solvers.patches.solver import is_valid_solution as patches_valid
 from solvers.queens.solver import is_valid_solution as queens_valid
+from solvers.sudoku.solver import is_valid_solution as sudoku_valid
 from solvers.tango.solver import is_valid_solution as tango_valid
 from solvers.wend.solver import MIN_WORD_LENGTH
 from solvers.wend.solver import is_valid_solution as wend_valid
@@ -115,6 +117,26 @@ def cases(game: str) -> Iterator[Case]:
                 and tuple(r.word for r in rungs) in (synthetic.CROSSCLIMB_ANSWER, synthetic.CROSSCLIMB_ANSWER[::-1])
             ),
         )
+    elif game == "mini-sudoku":
+        for seed in (1, 2, 3):
+            board, _ = synthetic.generate_sudoku(seed)
+            yield Case(
+                f"6x6 seed {seed}",
+                board,
+                synthetic.render_sudoku(board, seed=seed),
+                lambda parsed, b=board: dict(parsed.givens) == dict(b.givens),
+                lambda solution, b=board: sudoku_valid(b, solution),
+            )
+    elif game == "patches":
+        for n in (5, 6, 7):
+            board, _ = synthetic.generate_patches(n, seed=n)
+            yield Case(
+                f"{n}x{n}",
+                board,
+                synthetic.render_patches(board, seed=n),
+                lambda parsed, b=board: parsed == b,
+                lambda solution, b=board: patches_valid(b, solution),
+            )
     elif game == "pinpoint":
         for clues, expected in synthetic.PINPOINT_SAMPLES:
             yield Case(

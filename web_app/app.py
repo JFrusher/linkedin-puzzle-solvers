@@ -26,6 +26,8 @@ SAMPLES = {
     "tango": lambda seed: synthetic.render_tango(synthetic.generate_tango(6, seed)[0], seed),
     "wend": lambda seed: synthetic.render_wend(synthetic.WEND_SAMPLE, seed),
     "crossclimb": lambda seed: synthetic.render_crossclimb(synthetic.CROSSCLIMB_SAMPLE),
+    "mini-sudoku": lambda seed: synthetic.render_sudoku(synthetic.generate_sudoku(seed)[0], seed),
+    "patches": lambda seed: synthetic.render_patches(synthetic.generate_patches(6, seed)[0], seed),
 }
 
 

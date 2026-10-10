@@ -2,7 +2,7 @@
 
     python -m bench.deduction_report
 
-Queens and Tango: share of explanation steps that fall back to search (``Search`` / ``SAT``).
+Queens, Tango, Wend, Mini Sudoku, Patches: share of explanation steps that fall back to ``Search`` / ``SAT``.
 Zip: solve latency on sparse boards (few checkpoints, no walls), where weak pruning shows as a long tail.
 """
 
@@ -14,7 +14,9 @@ from collections.abc import Callable
 from typing import Any
 
 from bench import synthetic
+from solvers.patches.solver import PatchesSolver
 from solvers.queens.solver import QueensSolver
+from solvers.sudoku.solver import SudokuSolver
 from solvers.tango.solver import TangoSolver
 from solvers.wend.solver import WendSolver
 from solvers.zip.solver import ZipSolver
@@ -45,6 +47,13 @@ def main() -> None:
     boards = [synthetic.generate_tango(6, seed)[0] for seed in SEEDS]
     share = guess_share(TangoSolver, boards, "SAT", lambda b: b.size**2 - len(b.givens))
     print(f"| Tango | 6x6 | `SAT` steps | {share} |")
+    boards = [synthetic.generate_sudoku(seed)[0] for seed in SEEDS]
+    share = guess_share(SudokuSolver, boards, "SAT", lambda b: 36 - len(b.givens))
+    print(f"| Mini Sudoku | 6x6 | `SAT` steps | {share} |")
+    for n in (5, 6, 7):
+        boards = [synthetic.generate_patches(n, seed)[0] for seed in SEEDS]
+        share = guess_share(PatchesSolver, boards, "Search", lambda b: len(b.clues))
+        print(f"| Patches | {n}x{n} | `Search` patches | {share} |")
     for n in (6, 7, 8):
         runs = [ZipSolver().run(synthetic.sparse_zip(n, seed), track_memory=False).profile for seed in range(30)]
         micros = sorted(run.latency_us for run in runs)

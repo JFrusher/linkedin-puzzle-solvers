@@ -6,7 +6,7 @@
 ![OpenCV](https://img.shields.io/badge/vision-OpenCV%20%7C%20EasyOCR-green)
 ![Solvers](https://img.shields.io/badge/solvers-DLX%20%7C%20A*%20%7C%20SAT%20%7C%20SBERT%20%7C%20Trie-purple)
 
-A Python monorepo of computer-vision parsers and solvers for LinkedIn's six daily puzzles. It turns a
+A Python monorepo of computer-vision parsers and solvers for LinkedIn's eight daily puzzles. It turns a
 screenshot into a structured board, solves it and explains every deduction. It also draws the answer back
 onto the original image.
 
@@ -15,13 +15,15 @@ onto the original image.
 | **Queens** (Crowns) | LAB colour sampling + K-Means regions | Knuth's Algorithm X on Dancing Links |
 | **Zip** (Pathfinder) | Hough circles + EasyOCR digits, wall-thickness probes | A* with connectivity and degree pruning |
 | **Tango** (Sun & Moon) | Template matching (cells and edge signs) | CNF reduction solved by MiniSat (PySAT) |
-| **Pinpoint** (Patches) | Text stream | Sentence-BERT moving centroid × WordNet hypernyms + word-play checks (join word, many senses) |
+| **Pinpoint** (Categories) | Text stream | Sentence-BERT moving centroid × WordNet hypernyms + word-play checks (join word, many senses) |
 | **Crossclimb** (Word Ladder) | Letter-box rows + EasyOCR clues | SBERT clue answering + Hamming-1 ladder search + shared-clue end pair |
 | **Wend** (Word Partitioning) | Per-tile EasyOCR, wall tiles, slot rows | Trie-guided DFS tiling + flood-fill island pruning |
+| **Mini Sudoku** (6×6) | Ink test + per-cell EasyOCR digits | CNF exactly-one encoding solved by MiniSat (PySAT) |
+| **Patches** (Rectangles) | EasyOCR area digits + icon aspect (square / tall / wide) | Exact cover on Dancing Links |
 
 > 📸 **Demo placeholder:** `docs/demo.gif` — screenshot → overlay round-trip in the browser extension.
 >
-> 🖼️ **Overlay placeholders:** `docs/queens.png`, `docs/zip.png`, `docs/tango.png`, `docs/wend.png`
+> 🖼️ **Overlay placeholders:** `docs/queens.png`, `docs/zip.png`, `docs/tango.png`, `docs/wend.png`, `docs/mini-sudoku.png`, `docs/patches.png`
 
 ---
 
@@ -103,6 +105,8 @@ The extension does not rely on LinkedIn's DOM class names. It runs the same visi
 | Tango | SAT: N² vars; sequential-counter cardinality for N/2 per line; (¬a∨¬b∨¬c)∧(a∨b∨c) per triple; ⇔ / ⊕ for signs | O(2^{N²}) | MiniSat CDCL, tens of decisions |
 | Pinpoint | C = (1/K) Σ Embed(clueᵢ); score = cos(C, Embed(h)) × coverage(h) over hypernyms h | O(K · H · d) | H ≈ hundreds of hypernyms, d = 384 |
 | Crossclimb | Top-25 gloss-similar words per clue; branch-and-bound best-score path in the Hamming-1 graph; then the top/bottom pair one letter from each end that best fits the shared clue | O(K! · 25^K) | Bounded by best-remaining-score; sparse graph; end pairs are tens of candidates |
+| Mini Sudoku | SAT: 216 vars x(r,c,d); pairwise exactly-one per cell and per digit in every row, column and 2×3 box | O(6^{36}) | Givens propagate to the answer: MiniSat makes ~2 decisions |
+| Patches | Exact cover: N² cell items + one item per clue; rows are rectangles of the clue's area and shape holding no other clue | O(rectangles^{clues}) | MRV column choice; tens of nodes |
 | Wend | Trie DFS enumerates word paths; exact tiling over tiles with MRV; islands must be subset-sum fillable | O(placements^{words}) | Trie prunes dead prefixes; flood-fill rejects untileable islands |
 
 ### Measured performance
@@ -124,6 +128,12 @@ ground-truth board from a perspective-skewed render. Every board has exactly one
 | tango | 6x6 seed 2 | ✅ | ✅ | 498 | 76.1 | 9 |
 | tango | 6x6 seed 3 | ✅ | ✅ | 438 | 75.4 | 2 |
 | wend | 5x5 sample | ✅ | ✅ | 1,148 | 31.0 | 363 |
+| mini-sudoku | 6x6 seed 1 | ✅ | ✅ | 1,390 | 328.2 | 2 |
+| mini-sudoku | 6x6 seed 2 | ✅ | ✅ | 2,040 | 328.3 | 2 |
+| mini-sudoku | 6x6 seed 3 | ✅ | ✅ | 1,405 | 328.3 | 2 |
+| patches | 5x5 | ✅ | ✅ | 199 | 13.3 | 8 |
+| patches | 6x6 | ✅ | ✅ | 506 | 23.1 | 17 |
+| patches | 7x7 | ✅ | ✅ | 722 | 32.0 | 22 |
 
 Queens meets the < 1 ms target up to 12×12 on this run (12×12: 955 µs); DLX node allocation dominates. Zip on
 sparse boards (few numbers, no walls) is the hardest case; its numbers are in `docs/IMPROVEMENTS.md`. Pinpoint and Crossclimb latencies come from the CI benchmark (they need the
@@ -146,16 +156,17 @@ Tango 6×6 (seed 4)
 | 14 | Balance       | (2,4) | Cell (2, 4) must be sun because its line already holds 3 moons         |
 ```
 
-Queens and Tango replay the solution with human rules (single choice, relations, no-three, balance). They
-label a step `Search` or `SAT` only when no single rule forces the cell.
+Queens, Tango, Mini Sudoku and Patches replay the solution with human rules (single choice, relations,
+no-three, balance, naked and hidden singles, only fit and only cover). They label a step `Search` or `SAT`
+only when no single rule forces the move.
 
 ---
 
 ## Repository layout
 
 ```text
-core/          vision_base · solver_base · explainer · visualizer · nlp (SBERT + WordNet)
-solvers/       queens · zip · tango · pinpoint · crossclimb · wend  (+ registry in __init__)
+core/          vision_base · solver_base · explainer · visualizer · dlx · nlp (SBERT + WordNet)
+solvers/       queens · zip · tango · pinpoint · crossclimb · wend · sudoku · patches  (+ registry in __init__)
 bench/         benchmark_runner · synthetic (seeded generators + skewed renderers)
 tests/         one suite per game + core
 web_app/       Streamlit playground (Raw · Contours · HSV Masks · Graph Nodes tabs)
@@ -174,4 +185,7 @@ main.py        CLI: solve · stream · benchmark · serve
 - **Crossclimb** assumes each clue is printed to the left of its row of letter boxes. It answers clues from
   WordNet glosses, so trivia outside WordNet's vocabulary is out of reach.
 - **Wend** words use orthogonal adjacency.
+- **Patches** expects the area in the top half of a clue cell and a rectangle icon (square, tall or wide)
+  below it, with no icon meaning any shape. That layout is from the synthetic renders; check it against a
+  real capture.
 - **Zip** uses A* with backtracking order and pruning. It does not use a bidirectional search.
