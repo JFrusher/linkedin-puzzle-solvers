@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "LinkedIn Puzzle Solvers",
+  "version": "1.0.0",
+  "description": "Click the toolbar icon on a LinkedIn game: the local Python backend solves a screenshot and the solution is overlaid on the page.",
+  "permissions": ["activeTab"],
+  "host_permissions": ["http://127.0.0.1:8765/*"],
+  "action": {
+    "default_title": "Solve this LinkedIn puzzle"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/games/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
