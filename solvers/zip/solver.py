@@ -186,15 +186,53 @@ class ZipSolver(BaseSolver[ZipBoard, list[Cell]]):
                         stack.append(nb)
             return False
 
+        # Repeated-state skipping: what can follow a state depends only on (head, visited, next checkpoint), so
+        # each key is expanded once. An answer found through one arrival is also an answer through every other
+        # arrival at the same key, so those answers are rebuilt by splicing instead of searched again.
+        expanded: set[tuple[int, int, int]] = set()
+        skipped: dict[tuple[int, int, int], list[_State]] = {}
+        suffixes: dict[tuple[int, int, int], list[tuple[int, ...]]] = {}
+        # Keyed by id() but holding the state, so a finished state's id cannot be reused by a new one.
+        spliced: dict[tuple[int, tuple[int, ...]], _State] = {}
+        found: set[tuple[int, ...]] = set()
+
+        def key(state: _State) -> tuple[int, int, int]:
+            return state.head, state.visited, state.next_checkpoint
+
+        def record(state: _State, tail: tuple[int, ...]) -> Iterator[list[Cell]]:
+            """``state`` reaches the end through ``tail``; yield every answer that implies, once each."""
+            if (id(state), tail) in spliced:
+                return
+            spliced[id(state), tail] = state
+            pending: list[tuple[_State, tuple[int, ...]]] = []
+            node: _State | None = state
+            while node is not None:
+                suffixes.setdefault(key(node), []).append(tail)
+                pending += [(other, tail) for other in skipped.get(key(node), [])]
+                tail = (node.head, *tail)
+                node = node.parent
+            if tail not in found:
+                found.add(tail)
+                yield [divmod(index, n) for index in tail]
+            for other, other_tail in pending:
+                yield from record(other, other_tail)
+
         start = _State(head=checkpoints[0], visited=1 << checkpoints[0], next_checkpoint=1, g=0, parent=None)
         tie = count()
         h, d = heuristic(start)
         frontier: list[tuple[int, int, int, int, int, _State]] = [(h, 0, 0, d, next(tie), start)]
         while frontier:
             *_, state = heapq.heappop(frontier)
+            state_key = key(state)
+            if state_key in expanded:
+                skipped.setdefault(state_key, []).append(state)
+                for tail in list(suffixes.get(state_key, [])):
+                    yield from record(state, tail)
+                continue
+            expanded.add(state_key)
             self.nodes_expanded += 1
             if state.visited == full:
-                yield self._path(state, n)
+                yield from record(state, ())
                 continue
             if state.head == end:
                 continue
@@ -219,15 +257,6 @@ class ZipSolver(BaseSolver[ZipBoard, list[Cell]]):
                 # Warnsdorff: among equal-depth siblings, try the cell with the fewest onward moves first.
                 onward = sum(1 for nxt in adjacency[nb] if not (visited >> nxt) & 1)
                 heapq.heappush(frontier, (child.g + h, -child.g, onward, d, next(tie), child))
-
-    @staticmethod
-    def _path(state: _State, n: int) -> list[Cell]:
-        indices: list[int] = []
-        node: _State | None = state
-        while node is not None:
-            indices.append(node.head)
-            node = node.parent
-        return [divmod(index, n) for index in reversed(indices)]
 
     def explain(self, board_state: ZipBoard, solution: list[Cell]) -> None:
         path = solution

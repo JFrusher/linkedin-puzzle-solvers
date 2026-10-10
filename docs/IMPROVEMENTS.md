@@ -64,17 +64,21 @@ size. Each change was kept only after measuring it on the same boards.
 | Warnsdorff move order (fewest onward moves first) | sparse 8x8 p90 3.6 s → 9.8 ms | yes |
 | Tarjan bottlenecks (end is a cut cell; a cut cell splits off a part the head cannot enter) | caught 55% + 20% of the remaining off-path states; worst 7x7 nodes 32,680 → 13,024 | yes |
 | Double forced move | caught < 2% | no |
-| Skip repeated states (same head, visited set, next checkpoint) | 58% of popped states are repeats; halves the tail again | **not yet**: answers that meet at the same state must be stitched back together, or answer counting breaks |
+| Skip repeated states (same head, visited set, next checkpoint) | 58% of popped states are repeats; worst 7x7 1.4 → 0.65 s, 8x8 3.0 → 1.2 s | yes: answers that meet at a skipped state are rebuilt by splicing; checked against brute force |
 
 | Sparse boards | p90 before → after | worst before → after |
 |---|---|---|
 | 6x6 | 8.6 → 3.4 ms | 65 → 6 ms |
-| 7x7 | 100 → 7 ms | 2.4 → 1.3 s |
-| 8x8 | 5,275 → 9 ms | 18.3 → 2.8 s |
+| 7x7 | 100 → 8 ms | 2.4 → 0.65 s |
+| 8x8 | 5,275 → 9 ms | 18.3 → 1.2 s |
 
 Medians on generated boards are unchanged within noise (about 2–5 ms), since each state now costs a little more.
-The remaining tail is deep dead branches that no cheap static check found; repeated-state skipping is the
-measured next step. Solver soundness: 0 mismatches against the true path over 90 one-answer boards, and valid
+Repeated-state skipping needs care when counting answers. Two answers can reach the same state by different
+routes, so when a repeat is skipped, its answers are rebuilt by joining its route to every ending already
+found from that state. Over 135 many-answer boards, the full answer sets matched the solver without
+skipping. The first version failed this check only now and then: it keyed states by `id()`, and Python
+reused the ids of freed states. Keeping each processed state alive fixed it. A brute-force test now
+guards it. Solver soundness: 0 mismatches against the true path over 90 one-answer boards, and valid
 paths on 60 sparse boards.
 
 ### Tango (done)
