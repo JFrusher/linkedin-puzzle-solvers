@@ -115,25 +115,64 @@ class PatchesSolver(BaseSolver[PatchesBoard, list[Patch]]):
         self.nodes_expanded = links.nodes_expanded
 
     def explain(self, board_state: PatchesBoard, solution: list[Patch]) -> None:
-        """Replay: a clue with one rectangle left, or a cell only one rectangle can still cover, is forced."""
+        """Replay the answer with human rules; ``Search`` only where none applies.
+
+        * Only Fit: a clue with one rectangle left takes it.
+        * Only Cover: a cell that only one rectangle can still cover takes that rectangle.
+        * Try and Fail: a rectangle that, followed by Only Fit and Only Cover steps, leaves a clue with no
+          rectangle or a cell that nothing can cover is ruled out.
+        """
+        options = {clue: candidates(board_state, clue) for clue in board_state.clues}
+        ruled_out: set[Patch] = set()
         uncovered = {(r, c) for r in range(board_state.size) for c in range(board_state.size)}
         open_clues = list(board_state.clues)
         remaining = list(solution)
+
+        def fitting(cover: set[Cell], clues: list[Clue]) -> dict[Clue, list[Patch]]:
+            return {clue: [p for p in options[clue] if p not in ruled_out and p.cells <= cover] for clue in clues}
+
+        def forced(cover: set[Cell], fits: dict[Clue, list[Patch]]) -> tuple[Patch, str, str] | None:
+            for opts in fits.values():
+                if len(opts) == 1:
+                    return opts[0], "Only Fit", "it is the only rectangle left that fits the clue"
+            for cell in sorted(cover):
+                covering = [p for opts in fits.values() for p in opts if cell in p.cells]
+                if len(covering) == 1:
+                    return covering[0], "Only Cover", f"no other rectangle can still cover {cell}"
+            return None
+
+        def dead_end(patch: Patch) -> bool:
+            cover, clues = uncovered - patch.cells, [clue for clue in open_clues if clue != patch.clue]
+            while clues:
+                fits = fitting(cover, clues)
+                if any(not opts for opts in fits.values()):
+                    return True
+                if any(all(cell not in p.cells for opts in fits.values() for p in opts) for cell in cover):
+                    return True
+                step = forced(cover, fits)
+                if step is None:
+                    return False
+                cover -= step[0].cells
+                clues.remove(step[0].clue)
+            return bool(cover)
+
         while open_clues:
-            fits = {clue: [p for p in candidates(board_state, clue) if p.cells <= uncovered] for clue in open_clues}
-            forced = next(((clue, opts[0]) for clue, opts in fits.items() if len(opts) == 1), None)
-            if forced is not None:
-                patch = forced[1]
-                rule, reason = "Only Fit", "it is the only rectangle left that fits the clue"
-            else:
-                covering = {cell: [p for opts in fits.values() for p in opts if cell in p.cells] for cell in uncovered}
-                cell = next((cell for cell in sorted(uncovered) if len(covering[cell]) == 1), None)
-                if cell is not None:
-                    patch = covering[cell][0]
-                    rule, reason = "Only Cover", f"no other rectangle can still cover {cell}"
-                else:
-                    patch = remaining[0]
-                    rule, reason = "Search", "no rule applies, so the search picks it"
+            fits = fitting(uncovered, open_clues)
+            step = forced(uncovered, fits)
+            if step is None:
+                failing = next((p for opts in fits.values() for p in opts if dead_end(p)), None)
+                if failing is not None:
+                    ruled_out.add(failing)
+                    self.explainer.add(
+                        "Try and Fail",
+                        f"clue {failing.clue.label} at {failing.clue.cell} cannot take the "
+                        f"{failing.height}x{failing.width} patch at ({failing.top}, {failing.left}): a few steps "
+                        "later a clue has no rectangle or a cell cannot be covered",
+                        failing.clue.cell,
+                    )
+                    continue
+                step = remaining[0], "Search", "no rule applies, so the search picks it"
+            patch, rule, reason = step
             remaining = [p for p in remaining if p.clue != patch.clue]
             open_clues.remove(patch.clue)
             uncovered -= patch.cells
