@@ -338,11 +338,11 @@ def generate_sudoku(seed: int) -> tuple[SudokuBoard, list[list[int]]]:
 
 
 def generate_patches(n: int, seed: int) -> tuple[PatchesBoard, list[Patch]]:
-    """Random rectangle tiling with one clue per rectangle; vague "any" clues are sharpened until unique."""
+    """Random rectangle tiling; each rectangle shows its area or its shape, as LinkedIn does. Retried until unique."""
     rng = random.Random(seed)
     for _ in range(1000):
         free = {(r, c) for r in range(n) for c in range(n)}
-        rects: list[tuple[int, int, int, int]] = []
+        clues = []
         while free:
             top, left = min(free)
             sizes = [
@@ -352,25 +352,16 @@ def generate_patches(n: int, seed: int) -> tuple[PatchesBoard, list[Patch]]:
                 if {(top + i, left + j) for i in range(h) for j in range(w)} <= free
             ]
             h, w = rng.choice(sizes)
-            rects.append((top, left, h, w))
             free -= {(top + i, left + j) for i in range(h) for j in range(w)}
-        clues = []
-        truth_shapes: dict[Cell, str] = {}
-        for top, left, h, w in rects:
-            shape = "square" if h == w else "tall" if h > w else "wide"
             cell = (top + rng.randrange(h), left + rng.randrange(w))
-            truth_shapes[cell] = shape
-            clues.append(Clue(cell, h * w, "any" if rng.random() < 0.4 else shape))
-        for _ in range(len(clues) + 1):
-            board = PatchesBoard(n, tuple(sorted(clues, key=lambda clue: clue.cell)))
-            answers = list(islice(PatchesSolver().solutions(board), 2))
-            if len(answers) == 1:
-                return board, answers[0]
-            vague = [i for i, clue in enumerate(clues) if clue.shape == "any"]
-            if not vague:
-                break
-            i = rng.choice(vague)
-            clues[i] = Clue(clues[i].cell, clues[i].area, truth_shapes[clues[i].cell])
+            if rng.random() < 0.5:
+                clues.append(Clue(cell, h * w, "any"))
+            else:
+                clues.append(Clue(cell, None, "square" if h == w else "tall" if h > w else "wide"))
+        board = PatchesBoard(n, tuple(sorted(clues, key=lambda clue: clue.cell)))
+        answers = list(islice(PatchesSolver().solutions(board), 2))
+        if len(answers) == 1:
+            return board, answers[0]
     raise ValueError(f"could not make a one-answer {n}x{n} Patches board")
 
 
@@ -540,21 +531,27 @@ def render_sudoku(board: SudokuBoard, seed: int = 0) -> np.ndarray:
     return skew(image, seed)
 
 
+PATCHES_BADGES = ((230, 150, 60), (80, 190, 80), (60, 60, 225), (200, 80, 200), (0, 140, 235), (150, 130, 0))
+"""Saturated BGR badge colours, like LinkedIn's."""
+
+
 def render_patches(board: PatchesBoard, seed: int = 0) -> np.ndarray:
-    """Clue cells show the area in the upper half and the shape icon (none for "any") in the lower half."""
+    """LinkedIn's style: an area clue is a '+' badge holding the number, a shape clue a solid rectangle."""
     n = board.size
     image = _canvas(n)
     cv2.rectangle(image, (MARGIN, MARGIN), (MARGIN + n * CELL, MARGIN + n * CELL), (255, 255, 255), -1)
     _grid_lines(image, n)
-    icon = {"square": (16, 16), "tall": (11, 20), "wide": (22, 11)}
-    for clue in board.clues:
+    icon = {"square": (0.6, 0.6), "tall": (0.5, 0.76), "wide": (0.76, 0.5)}  # width, height in cells (measured)
+    for index, clue in enumerate(board.clues):
         r, c = clue.cell
-        x, y = MARGIN + c * CELL + CELL // 2, MARGIN + r * CELL
-        visualizer.draw_label(image, str(clue.area), (x, y + int(CELL * 0.33)), 0.9, (20, 20, 20, 255))
-        if clue.shape != "any":
-            w, h = icon[clue.shape]
-            cy = y + int(CELL * 0.72)
-            cv2.rectangle(image, (x - w // 2, cy - h // 2), (x + w // 2, cy + h // 2), INK, 2)
+        x, y = MARGIN + c * CELL + CELL // 2, MARGIN + r * CELL + CELL // 2
+        color = PATCHES_BADGES[index % len(PATCHES_BADGES)]
+        boxes = [icon[clue.shape]] if clue.shape != "any" else [(0.74, 0.5), (0.5, 0.74)]
+        for w, h in boxes:
+            half_w, half_h = int(w * CELL / 2), int(h * CELL / 2)
+            cv2.rectangle(image, (x - half_w, y - half_h), (x + half_w, y + half_h), color, -1)
+        if clue.area is not None:
+            visualizer.draw_label(image, str(clue.area), (x, y), 1.1, (255, 255, 255, 255))
     _border(image, n)
     return skew(image, seed)
 

@@ -1,4 +1,4 @@
-"""Patches: rectangle candidates, DLX exact cover, Only Fit / Only Cover explanations and icon vision."""
+"""Patches: rectangle candidates, DLX exact cover, Only Fit / Only Cover explanations and badge vision."""
 
 from itertools import islice
 
@@ -36,9 +36,16 @@ def test_explanation_places_every_patch_of_the_answer(seed: int) -> None:
     assert len(steps) == len(board.clues)
     assert {s.cell for s in steps} == {clue.cell for clue in board.clues}
     assert {s.message.split(" because")[0] for s in steps} == {
-        f"clue {p.clue.area} at {p.clue.cell} takes the {p.height}x{p.width} patch at ({p.top}, {p.left})"
+        f"clue {p.clue.label} at {p.clue.cell} takes the {p.height}x{p.width} patch at ({p.top}, {p.left})"
         for p in truth
     }
+
+
+def test_shape_only_clue_takes_any_area() -> None:
+    board = PatchesBoard(3, (Clue((0, 0), None, "tall"), Clue((0, 1), 6, "any")))
+    sizes = {(p.height, p.width) for p in candidates(board, board.clues[0])}
+    assert sizes == {(2, 1), (3, 1)}  # a 2-wide patch would also hold the other clue
+    assert [(p.height, p.width) for p in PatchesSolver().solve(board)] == [(3, 1), (3, 2)]
 
 
 def test_impossible_board_raises() -> None:
@@ -51,6 +58,8 @@ def test_board_validation() -> None:
         PatchesBoard(2, (Clue((0, 0), 3, "any"),))
     with pytest.raises(ValueError):
         Clue((0, 0), 2, "round")
+    with pytest.raises(ValueError):
+        PatchesBoard(2, (Clue((0, 0), 5, "any"), Clue((1, 1), None, "square")))
 
 
 @pytest.mark.parametrize(("n", "seed"), [(5, 2), (5, 3), (6, 6), (7, 1)])

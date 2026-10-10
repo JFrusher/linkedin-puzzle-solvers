@@ -1,8 +1,9 @@
 """Patches: split the grid into rectangles, one clue each, as exact cover on Dancing Links.
 
-Each clue gives a patch's area and a shape: ``square``, ``tall`` (more rows than columns), ``wide`` (more
-columns than rows) or ``any``. A candidate is a rectangle of that area and shape that contains its clue
-cell and no other clue. Exact cover then picks one candidate per clue so that every cell is covered once:
+Each clue gives a patch's area, its shape (``square``, ``tall`` = more rows than columns, ``wide`` = more
+columns than rows, or ``any``), or both. LinkedIn shows a number for an area of any shape and a plain shape
+icon for a shape of any area. A candidate is a rectangle that fits the clue, contains its clue cell and no
+other clue. Exact cover then picks one candidate per clue so that every cell is covered once:
 primary items are the N^2 cells plus one item per clue.
 """
 
@@ -10,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from itertools import product
 
 from core.dlx import DancingLinks
 from core.solver_base import BaseSolver, UnsolvableError
@@ -21,14 +23,20 @@ SHAPES = ("square", "tall", "wide", "any")
 @dataclass(frozen=True)
 class Clue:
     cell: Cell
-    area: int
+    area: int | None
+    """``None`` when the clue shows only a shape."""
     shape: str
 
     def __post_init__(self) -> None:
         if self.shape not in SHAPES:
             raise ValueError(f"shape must be one of {SHAPES}, got {self.shape!r}")
-        if self.area < 1:
+        if self.area is not None and self.area < 1:
             raise ValueError(f"area must be positive, got {self.area}")
+
+    @property
+    def label(self) -> str:
+        """The clue as the board shows it: '6', 'tall' or '6 tall'."""
+        return " ".join(part for part in (str(self.area or ""), "" if self.shape == "any" else self.shape) if part)
 
 
 @dataclass(frozen=True)
@@ -39,8 +47,9 @@ class PatchesBoard:
     def __post_init__(self) -> None:
         if len({clue.cell for clue in self.clues}) != len(self.clues):
             raise ValueError("two clues share a cell")
-        if sum(clue.area for clue in self.clues) != self.size**2:
-            raise ValueError(f"clue areas sum to {sum(c.area for c in self.clues)}, not {self.size**2} cells")
+        known = [clue.area for clue in self.clues if clue.area is not None]
+        if sum(known) > self.size**2 or (len(known) == len(self.clues) and sum(known) != self.size**2):
+            raise ValueError(f"clue areas sum to {sum(known)}, which cannot tile {self.size**2} cells")
 
 
 @dataclass(frozen=True)
@@ -72,10 +81,9 @@ def candidates(board: PatchesBoard, clue: Clue) -> list[Patch]:
     others = {other.cell for other in board.clues if other != clue}
     r0, c0 = clue.cell
     found = []
-    for height in range(1, clue.area + 1):
-        if clue.area % height or not fits_shape(height, clue.area // height, clue.shape):
+    for height, width in product(range(1, board.size + 1), repeat=2):
+        if (clue.area is not None and height * width != clue.area) or not fits_shape(height, width, clue.shape):
             continue
-        width = clue.area // height
         for top in range(max(0, r0 - height + 1), min(r0, board.size - height) + 1):
             for left in range(max(0, c0 - width + 1), min(c0, board.size - width) + 1):
                 patch = Patch(clue, top, left, height, width)
@@ -116,8 +124,7 @@ class PatchesSolver(BaseSolver[PatchesBoard, list[Patch]]):
             forced = next(((clue, opts[0]) for clue, opts in fits.items() if len(opts) == 1), None)
             if forced is not None:
                 patch = forced[1]
-                shape = "" if patch.clue.shape == "any" else f"{patch.clue.shape} "
-                rule, reason = "Only Fit", f"it is the only {shape}rectangle of area {patch.clue.area} left"
+                rule, reason = "Only Fit", "it is the only rectangle left that fits the clue"
             else:
                 covering = {cell: [p for opts in fits.values() for p in opts if cell in p.cells] for cell in uncovered}
                 cell = next((cell for cell in sorted(uncovered) if len(covering[cell]) == 1), None)
@@ -132,7 +139,7 @@ class PatchesSolver(BaseSolver[PatchesBoard, list[Patch]]):
             uncovered -= patch.cells
             self.explainer.add(
                 rule,
-                f"clue {patch.clue.area} at {patch.clue.cell} takes the {patch.height}x{patch.width} patch at "
+                f"clue {patch.clue.label} at {patch.clue.cell} takes the {patch.height}x{patch.width} patch at "
                 f"({patch.top}, {patch.left}) because {reason}",
                 patch.clue.cell,
             )
@@ -147,7 +154,7 @@ def is_valid_solution(board: PatchesBoard, patches: list[Patch]) -> bool:
         return False
     clue_cells = {clue.cell for clue in board.clues}
     return all(
-        p.height * p.width == p.clue.area
+        (p.clue.area is None or p.height * p.width == p.clue.area)
         and fits_shape(p.height, p.width, p.clue.shape)
         and p.cells & clue_cells == {p.clue.cell}
         for p in patches
