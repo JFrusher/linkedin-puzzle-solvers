@@ -1,0 +1,12 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "dlx-rs"
+version = "0.1.0"
+description = "Rust Dancing Links engine, a drop-in twin of core/dlx.py for benchmarking"
+requires-python = ">=3.11"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
