@@ -101,6 +101,8 @@ def paste_page() -> None:
         return
     solved = visualizer.composite(image, outcome["layer"])
     st.subheader(GAMES[outcome["game"]].title)
+    if outcome["difficulty"] is not None:
+        st.caption(f"Difficulty: {outcome['difficulty']}")
     st.image(rgb(solved), caption="Right-click → Copy image, then Ctrl+V it anywhere", width=640)
     st.download_button("Download PNG", cv2.imencode(".png", solved)[1].tobytes(), "solved.png", "image/png")
     show_run(outcome["profile"], outcome["steps"])

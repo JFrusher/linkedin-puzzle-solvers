@@ -6,6 +6,7 @@ import pytest
 
 from bench import real
 from bench.benchmark_runner import same_partition
+from core.difficulty import rate
 from main import solve_image
 from solvers import get_game
 from solvers.patches.solver import is_valid_solution as patches_valid
@@ -72,3 +73,17 @@ def test_overlay_draws_on_the_screenshot(name: str) -> None:
 @pytest.mark.parametrize("name", ["queens", "zip", "tango", "mini-sudoku", "patches", "wend"])
 def test_game_is_detected_from_the_screenshot_alone(name: str) -> None:
     assert solve_image(None, real.image(name))["game"] == name
+
+
+@pytest.mark.parametrize(
+    "name, board, difficulty",
+    [
+        ("queens", real.QUEENS, "Medium: Confinement ×1, Shared Attack ×1"),
+        ("tango", real.TANGO, "Medium: Sign Balance ×3"),
+        ("mini-sudoku", real.SUDOKU, "Easy: Naked Single ×24"),
+        ("patches", real.PATCHES, "Hard: Try and Fail ×2"),
+        ("wend", real.WEND, "Easy: Only Word ×3, Nook ×2"),
+    ],
+)
+def test_real_boards_get_a_difficulty(name: str, board: object, difficulty: str) -> None:
+    assert rate(get_game(name).solver().run(board).explanation.steps) == difficulty

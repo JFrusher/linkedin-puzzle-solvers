@@ -13,7 +13,8 @@ import pytest
 
 import main
 from bench.synthetic import generate_queens, render_queens
-from core.explainer import Explainer
+from core.difficulty import rate
+from core.explainer import DeductionStep, Explainer
 from core.solver_base import BaseSolver
 from core.vision_base import BaseVisionParser, GridNotFoundError
 from main import SolveHandler, build_parser, to_jsonable
@@ -152,3 +153,13 @@ def test_clipboard_copy_uses_powershell_on_windows(monkeypatch: pytest.MonkeyPat
 
 def test_typed_boards_still_need_a_game() -> None:
     assert main.main(["solve", "--text", "examples/wend.txt"]) == 2
+
+
+def test_difficulty_is_the_hardest_rule_and_how_often_it_fired() -> None:
+    steps = [DeductionStep(i, rule, "") for i, rule in enumerate(["Single Choice", "Shared Attack", "Shared Attack"])]
+    assert rate(steps) == "Medium: Shared Attack ×2"
+
+
+def test_difficulty_refuses_a_rule_it_has_no_tier_for() -> None:
+    with pytest.raises(KeyError, match="Checkpoint"):
+        rate([DeductionStep(1, "Checkpoint", "")])
