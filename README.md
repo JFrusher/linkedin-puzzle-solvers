@@ -314,6 +314,22 @@ walls) is the hardest case; its numbers are in `docs/IMPROVEMENTS.md`. Pinpoint 
 from the CI benchmark, because they need the SBERT model. The **Benchmark** workflow re-runs the whole suite
 daily and publishes the table as a job summary and an artifact.
 
+### Scaling past LinkedIn's sizes
+
+LinkedIn ships fixed sizes, so `python -m bench.scaling` grows the seeded generators past them. It plots the
+median and the worst of five boards per size:
+
+![Solve latency and nodes expanded against board size for Queens, Patches, Zip and Tango](docs/scaling.svg)
+
+- **Queens:** DLX expands about N nodes up to 13×13 (5 at 5×5, 13 at 13×13). On a board with one answer,
+  choosing the column with the fewest options almost never has to back up.
+- **Patches:** grows fastest per node, because the candidate rectangles grow with the area. The median rises
+  from 0.3 ms at 5×5 to about 40 ms at 12×12.
+- **Zip:** the median A* run expands exactly N² nodes, so it walks straight to the goal. The tail is heavy:
+  `sparse_zip(12, seed=3)` cost 3,213,205 nodes and 608 s, while seeds 0–2 took 144–721 nodes. That is why the
+  chart stops at 11×11.
+- **Tango:** CNF size grows with N², but MiniSat needs only 8–50 decisions up to 12×12.
+
 ---
 
 ## Explainable output
@@ -338,6 +354,27 @@ Queens, Tango, Wend, Mini Sudoku and Patches replay the solution with human rule
 no-three, balance, naked and hidden singles, only fit, only cover, try and fail). They label a step `Search` or `SAT`
 only when no single rule forces the move.
 
+### Difficulty
+
+Those five games also get a difficulty, read off the log the way Sudoku graders rate puzzles: a board is as hard
+as the hardest rule it needs, and how often that rule fires orders boards within a band (`core/difficulty.py`).
+
+| Band | Rules |
+|---|---|
+| Easy | Single Choice, No Three, Relation, Balance, Naked Single, Only Fit, Only Word, Nook |
+| Medium | Shared Attack, Confinement, Sign Balance, Equal Pair Neighbour, Hidden Single, Only Cover |
+| Hard | Try and Fail |
+| Expert | Search, SAT (no rule applies) |
+
+The real boards in `tests/fixtures/real/` rate as follows:
+- Queens: `Medium: Confinement ×1, Shared Attack ×1`
+- Tango: `Medium: Sign Balance ×3`
+- Mini Sudoku: `Easy: Naked Single ×24`
+- Patches: `Hard: Try and Fail ×2`
+- Wend: `Easy: Only Word ×3, Nook ×2`
+
+The CLI, the JSON output and the paste page show the rating.
+
 ---
 
 ## Repository layout
@@ -346,7 +383,7 @@ only when no single rule forces the move.
 rust/dlx/      Rust twin of core/dlx.py (PyO3), checked equal by tests, benchmarked by bench/dlx_speed.py
 core/          vision_base · solver_base · explainer · visualizer · dlx · nlp (SBERT + WordNet)
 solvers/       queens · zip · tango · pinpoint · crossclimb · wend · sudoku · patches  (+ registry in __init__)
-bench/         benchmark_runner · synthetic (seeded generators + skewed renderers) · real (screenshot boards) · gifs
+bench/         benchmark_runner · synthetic (seeded generators + skewed renderers) · real (screenshot boards) · gifs · scaling
 tests/         one suite per game + core, real screenshots (fixtures/real), typed boards, animations
 web_app/       Streamlit playground (sample, upload or typed board · Raw · Contours · HSV Masks · Graph Nodes tabs)
 extension/     Manifest V3: background.js (capture + REST) · content.js (overlay)

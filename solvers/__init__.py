@@ -36,14 +36,16 @@ class Game:
     """``None`` for games played from a text stream rather than a screenshot."""
     text: Callable[[str], Any] | None = None
     """Builds the board from typed text, for games whose screenshot can be skipped."""
+    rated: bool = False
+    """True when ``explain`` replays human rules, so ``core.difficulty.rate`` can grade the log."""
 
 
 GAMES: dict[str, Game] = {
     game.name: game
     for game in (
-        Game("queens", "Queens (Crowns) — DLX exact cover", QueensSolver, QueensVisionParser),
+        Game("queens", "Queens (Crowns) — DLX exact cover", QueensSolver, QueensVisionParser, rated=True),
         Game("zip", "Zip (Pathfinder) — A* search", ZipSolver, ZipVisionParser),
-        Game("tango", "Tango (Sun & Moon) — SAT", TangoSolver, TangoVisionParser),
+        Game("tango", "Tango (Sun & Moon) — SAT", TangoSolver, TangoVisionParser, rated=True),
         Game("pinpoint", "Pinpoint (Categories) — SBERT centroid", PinpointSolver, None),
         Game(
             "crossclimb",
@@ -52,9 +54,9 @@ GAMES: dict[str, Game] = {
             CrossclimbVisionParser,
             crossclimb_from_text,
         ),
-        Game("wend", "Wend (Word Partitioning) — Trie DFS", WendSolver, WendVisionParser, wend_from_text),
-        Game("mini-sudoku", "Mini Sudoku (6x6) — SAT", SudokuSolver, SudokuVisionParser),
-        Game("patches", "Patches (Rectangles) — DLX exact cover", PatchesSolver, PatchesVisionParser),
+        Game("wend", "Wend (Word Partitioning) — Trie DFS", WendSolver, WendVisionParser, wend_from_text, rated=True),
+        Game("mini-sudoku", "Mini Sudoku (6x6) — SAT", SudokuSolver, SudokuVisionParser, rated=True),
+        Game("patches", "Patches (Rectangles) — DLX exact cover", PatchesSolver, PatchesVisionParser, rated=True),
     )
 }
 
