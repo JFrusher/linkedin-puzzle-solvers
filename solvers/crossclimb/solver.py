@@ -75,8 +75,8 @@ class CrossclimbSolver(BaseSolver[CrossclimbBoard, list[Rung]]):
         candidates: list[list[tuple[str, float]]] = []
         for clue, vector in zip(board_state.clues, clue_vectors):
             scores = gloss_vectors @ vector
-            top = np.argsort(-scores)[:TOP_K]
-            candidates.append([(words[i], float(scores[i])) for i in top])
+            best = np.argsort(-scores)[:TOP_K]
+            candidates.append([(words[i], float(scores[i])) for i in best])
             best_word, best_score = candidates[-1][0]
             self.explainer.add("Clue", f"'{clue}' -> best guess {best_word} (cosine {best_score:.2f})")
         ladder = self._best_ladder(candidates)

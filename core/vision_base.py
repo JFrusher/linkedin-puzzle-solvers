@@ -85,7 +85,9 @@ def tight_crop(image: np.ndarray, ink: np.ndarray) -> np.ndarray:
     """Crop to the ink plus a white border: a loose crop makes the recognizer invent extra glyphs."""
     ys, xs = np.nonzero(ink)
     crop = image[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
-    return cv2.copyMakeBorder(crop, *[GLYPH_PAD] * 4, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+    return cv2.copyMakeBorder(
+        crop, GLYPH_PAD, GLYPH_PAD, GLYPH_PAD, GLYPH_PAD, cv2.BORDER_CONSTANT, value=(255, 255, 255)
+    )
 
 
 def order_corners(points: np.ndarray) -> np.ndarray:

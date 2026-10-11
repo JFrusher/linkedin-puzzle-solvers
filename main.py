@@ -105,14 +105,12 @@ def solve_text(game_name: str, text: str) -> dict[str, Any]:
 
 def read_clipboard_image() -> np.ndarray:
     """The image on the clipboard (Win+Shift+S puts screenshots there), as BGR."""
-    from PIL import ImageGrab
+    from PIL import Image, ImageGrab
 
     grabbed = ImageGrab.grabclipboard()
-    if isinstance(grabbed, list):  # copied files rather than pixels: use the first image file
-        grabbed = BaseVisionParser.load_image(grabbed[0]) if grabbed else None
-        if grabbed is not None:
-            return grabbed
-    if grabbed is None:
+    if isinstance(grabbed, list) and grabbed:  # copied files rather than pixels: use the first image file
+        return BaseVisionParser.load_image(grabbed[0])
+    if not isinstance(grabbed, Image.Image):
         raise ValueError("the clipboard holds no image: take a screenshot (Win+Shift+S) first")
     return cv2.cvtColor(np.asarray(grabbed.convert("RGB")), cv2.COLOR_RGB2BGR)
 

@@ -9,6 +9,19 @@ pythonpath = ["."]
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning", "ignore::UserWarning", "ignore::FutureWarning"]
 
+[tool.mypy]
+strict = true
+ignore_missing_imports = true  # opencv, easyocr, pysat, nltk and streamlit ship no type stubs
+files = ["core", "solvers", "bench", "main.py", "web_app"]
+
+[tool.coverage.run]
+source = ["core", "solvers", "main"]
+
+[tool.coverage.report]
+fail_under = 90  # the README badge quotes this floor; CI fails below it
+skip_covered = true
+show_missing = true
+
 [tool.ruff]
 line-length = 120
 target-version = "py311"

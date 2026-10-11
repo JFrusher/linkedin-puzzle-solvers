@@ -32,8 +32,8 @@ class Case:
     board: Any
     image: np.ndarray | None
     """Rendered screenshot, or ``None`` when the game has no vision stage."""
-    parsed_ok: Callable[[Any], bool]
-    solved_ok: Callable[[Any], bool]
+    parsed_ok: Callable[..., bool]
+    solved_ok: Callable[..., bool]
 
 
 @dataclass(frozen=True)
@@ -61,6 +61,7 @@ def word_recall(parsed: str, truth: str) -> float:
 
 def cases(game: str) -> Iterator[Case]:
     """Seeded benchmark cases for ``game``."""
+    board: Any  # each game yields its own board type
     if game == "queens":
         for n in (6, 8, 10, 12):
             board, _ = synthetic.generate_queens(n, seed=n)

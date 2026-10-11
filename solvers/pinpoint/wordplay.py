@@ -18,6 +18,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
+from typing import Any
 
 from core.nlp import wordnet
 
@@ -74,7 +75,7 @@ def lexicon() -> Lexicon:
             for token in tokens - {word}:
                 mentions[token].add((word, synset.name()))
 
-    def freeze(index: dict[str, set]) -> dict[str, frozenset]:
+    def freeze(index: dict[str, set[Any]]) -> dict[str, frozenset[Any]]:
         return {key: frozenset(values) for key, values in index.items()}
 
     return Lexicon(names, words, freeze(before), freeze(after), freeze(prefixes), freeze(mentions))
@@ -117,7 +118,7 @@ def joins(clue: str) -> set[str]:
     return labels
 
 
-def compound_hypernyms(clue: str, depth: int) -> list:
+def compound_hypernyms(clue: str, depth: int) -> list[Any]:
     """Synsets of ``clue_X`` compounds that are a kind of ``X`` (blue_whale is a whale)."""
     wn = wordnet()
     key = _key(clue)

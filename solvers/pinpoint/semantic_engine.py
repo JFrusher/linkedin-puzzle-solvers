@@ -65,7 +65,7 @@ class SemanticEngine:
         if not self._clue_vectors:
             raise ValueError("no clues have been added yet")
         mean = np.mean(self._clue_vectors, axis=0)
-        return mean / np.linalg.norm(mean)
+        return np.asarray(mean / np.linalg.norm(mean))
 
     def add_clue(self, clue: str) -> list[CategoryGuess]:
         """Add a clue, update the centroid and return the ranked categories."""
