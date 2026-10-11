@@ -329,7 +329,7 @@ in `tests/test_properties.py` let Hypothesis draw the inputs and check each answ
 Dropping the no-touch rule from the Queens solver fails the first Queens property within a few examples.
 
 ```bash
-mypy                    # strict, settings in pyproject.toml
+python -m mypy          # strict, settings in pyproject.toml; run it in the project environment
 pytest -q --cov         # unit, real-screenshot and property tests
 ```
 

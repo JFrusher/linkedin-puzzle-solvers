@@ -177,7 +177,9 @@ def fit(image: Image.Image) -> Image.Image:
     """Letterbox ``image`` into the white BOARD square."""
     square = Image.new("RGB", (BOARD, BOARD), "white")
     scale = min(BOARD / image.width, BOARD / image.height)
-    small = image.resize((max(1, round(image.width * scale)), max(1, round(image.height * scale))), Image.LANCZOS)
+    small = image.resize(
+        (max(1, round(image.width * scale)), max(1, round(image.height * scale))), Image.Resampling.LANCZOS
+    )
     square.paste(small, ((BOARD - small.width) // 2, (BOARD - small.height) // 2))
     return square
 
@@ -248,7 +250,7 @@ def compose(beat: Beat, intro: tuple[str, str], progress: float) -> Image.Image:
     draw.text((x, 38), title, font=font(34, "Bold"), fill=INK)
     draw.text((x, 84), subtitle, font=font(17), fill=SOFT)
     stages = ("1 Find", "2 Grid", "3 Read", "4 Deduce", "5 Solved")
-    sx = x
+    sx: float = x
     for index, name in enumerate(stages, start=1):
         face = font(13, "SemiBold" if index == beat.stage else "Regular")
         colour = INK if index == beat.stage else FAINT

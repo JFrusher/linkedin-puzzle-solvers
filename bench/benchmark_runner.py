@@ -255,7 +255,7 @@ def print_table(rows: list[BenchRow], console: Console | None = None) -> None:
         ("Peak KiB", "right"),
         ("Nodes", "right"),
     ):
-        table.add_column(column, justify=justify)
+        table.add_column(column, justify=justify)  # type: ignore[arg-type]
     for row in rows:
         table.add_row(
             row.game,

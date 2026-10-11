@@ -44,7 +44,7 @@ jobs:
           ruff format --check .
 
       - name: Type check (strict)
-        run: mypy
+        run: python -m mypy
 
       - name: Unit and property tests with coverage
         run: pytest -q --cov
