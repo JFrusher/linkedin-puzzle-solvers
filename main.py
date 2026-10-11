@@ -26,6 +26,7 @@ from rich.console import Console
 from rich.table import Table
 
 from core import visualizer
+from core.difficulty import rate
 from core.solver_base import UnsolvableError
 from core.vision_base import BaseVisionParser, GridNotFoundError
 from solvers import DETECTION_ORDER, GAMES, get_game
@@ -78,6 +79,7 @@ def solve_image(game_name: str | None, image: np.ndarray, slots: np.ndarray | No
         "solution": result.solution,
         "profile": result.profile,
         "steps": result.explanation.steps,
+        "difficulty": rate(result.explanation.steps) if game.rated else None,
         "layer": parser.overlay_layer(image, board, result.solution),
         "markdown": result.explanation.to_markdown(),
     }
@@ -96,6 +98,7 @@ def solve_text(game_name: str, text: str) -> dict[str, Any]:
         "solution": result.solution,
         "profile": result.profile,
         "steps": result.explanation.steps,
+        "difficulty": rate(result.explanation.steps) if game.rated else None,
         "markdown": result.explanation.to_markdown(),
     }
 
@@ -189,6 +192,8 @@ def _print_outcome(args: argparse.Namespace, outcome: dict[str, Any]) -> int:
     table.add_row("Nodes expanded", f"{profile.nodes_expanded:,}")
     if "overlay" in outcome:
         table.add_row("Overlay", outcome["overlay"])
+    if outcome["difficulty"] is not None:
+        table.add_row("Difficulty", outcome["difficulty"])
     if outcome["game"] in TYPED_GAMES:
         table.add_row("Answer", ", ".join(item.word for item in outcome["solution"]))
     console.print(table)
