@@ -91,6 +91,11 @@ A trie of WordNet words and their inflections drives a depth-first search that l
 board. An exact tiling then picks words of the slot lengths that cover every tile. Nook (a tile with one
 open neighbour must start or end a word) and Only Word explain each placement.
 
+### Engineering notes
+
+How the hard parts were solved, with the numbers: [case studies](docs/case-studies/) (a misleading baseline,
+Zip's long tail, rule soundness, real-screenshot calibration) and [decision records](docs/decisions/).
+
 ---
 
 ## Running it
@@ -321,7 +326,7 @@ web_app/       Streamlit playground (sample, upload or typed board · Raw · Con
 extension/     Manifest V3: background.js (capture + REST) · content.js (overlay)
 main.py        CLI: solve · stream · benchmark · serve
 examples/      typed boards for --text (Wend, Crossclimb)
-docs/          solved overlays · How-it-works GIFs · social preview · IMPROVEMENTS.md (measurements)
+docs/          case-studies · decisions · IMPROVEMENTS.md (measurements) · overlays · GIFs · social preview
 ```
 
 ---
