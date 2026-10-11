@@ -4,7 +4,7 @@
 screenshots, with large models (EasyOCR, Sentence-BERT) and CPU-heavy solves.
 
 **Decision.** Everything runs on the user's machine: the CLI, the Streamlit playground, and a local server for
-the browser extension. The server handles one request at a time on `127.0.0.1`, with a 30-second socket
+the browser extension. The server binds to `127.0.0.1` by default (`--host` overrides it) and handles one request at a time, with a 30-second socket
 deadline.
 
 **Why.** No data leaves the machine, there is no hosting cost, and the Docker image bakes in every model so it

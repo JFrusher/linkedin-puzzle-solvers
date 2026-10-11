@@ -10,8 +10,8 @@ obvious reaction would be to start writing more rules.
 ## Hypothesis
 
 Real LinkedIn boards have exactly one answer. The board generators did not check that. On a board with several
-answers, no rule can force a cell, because the cell really is a free choice, so those boards would show
-`Search` steps however good the rules were. The baseline was measuring the generator, not the rules.
+answers, no sound rule can force a cell whose value differs between answers, so those boards can add `Search`
+steps however good the rules are. The baseline was partly measuring the generator, not the rules.
 
 ## Measurement
 
