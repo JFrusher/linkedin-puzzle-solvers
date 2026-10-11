@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
@@ -25,6 +27,12 @@ jobs:
         run: |
           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
+
+      - name: Build the Rust Dancing Links twin
+        run: |
+          cargo fmt --check --manifest-path rust/dlx/Cargo.toml
+          cargo clippy --release --manifest-path rust/dlx/Cargo.toml -- -D warnings
+          pip install ./rust/dlx
 
       - name: Cache models and corpora
         uses: actions/cache@v4
