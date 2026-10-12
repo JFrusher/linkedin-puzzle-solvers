@@ -28,6 +28,27 @@ def test_profile_measures_latency_and_memory() -> None:
     assert record.latency_us > 0 and record.peak_memory_kb > 100
 
 
+def test_profile_serialises_threads_but_rejects_nesting() -> None:
+    errors: list[BaseException] = []
+
+    def profiled() -> None:
+        try:
+            with BaseSolver.profile(track_memory=True):
+                _ = [0] * 100_000
+        except BaseException as error:  # noqa: BLE001
+            errors.append(error)
+
+    threads = [threading.Thread(target=profiled) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert not errors
+    with BaseSolver.profile(track_memory=True), pytest.raises(RuntimeError, match="nested"):
+        with BaseSolver.profile(track_memory=True):
+            pass
+
+
 def test_explainer_serialises() -> None:
     explainer = Explainer()
     explainer.add("Single Choice", "Cell (3, 4) must be a Queen | forced", (3, 4))

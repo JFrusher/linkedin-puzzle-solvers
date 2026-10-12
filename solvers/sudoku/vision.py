@@ -11,6 +11,10 @@ from solvers.sudoku.solver import SIZE, Cell, Grid, SudokuBoard
 
 INK_FRACTION = 0.005
 """Cells with less than this fraction of dark pixels are empty: empty cells measure 0, a real "1" 0.016."""
+SATURATED = 50
+"""HSV saturation above which a pixel is coloured; Mini Sudoku is greyscale, so colour marks a Patches badge."""
+MAX_COLOUR_FRACTION = 0.1
+"""A cell more coloured than this is not a Mini Sudoku cell (Patches badges cover 0.1+ of a cell)."""
 
 
 class SudokuVisionParser(BaseVisionParser[SudokuBoard, Grid]):
@@ -22,6 +26,8 @@ class SudokuVisionParser(BaseVisionParser[SudokuBoard, Grid]):
         givens: dict[Cell, int] = {}
         for r, row in enumerate(self.extract_cells(grid.image, n)):
             for c, cell in enumerate(row):
+                if (cv2.cvtColor(cell, cv2.COLOR_BGR2HSV)[..., 1] > SATURATED).mean() > MAX_COLOUR_FRACTION:
+                    raise ValueError(f"cell {(r, c)} holds a coloured badge, not a Mini Sudoku digit")
                 if (cv2.cvtColor(cell, cv2.COLOR_BGR2GRAY) < 100).mean() < INK_FRACTION:
                     continue
                 digit, _ = recognize_glyphs(cell, allowlist="123456")

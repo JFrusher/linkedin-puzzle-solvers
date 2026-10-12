@@ -87,3 +87,28 @@ def test_game_is_detected_from_the_screenshot_alone(name: str) -> None:
 )
 def test_real_boards_get_a_difficulty(name: str, board: object, difficulty: str) -> None:
     assert rate(get_game(name).solver().run(board).explanation.steps) == difficulty
+
+
+def test_wend_reads_small_slots_from_the_same_screenshot() -> None:
+    parsed = get_game("wend").parser().parse(real.image("wend-2"))
+    assert parsed == real.WEND_2
+    assert sorted(p.word for p in get_game("wend").solver().solve(parsed)) == sorted(real.WEND_2_ANSWER)
+
+
+@pytest.mark.parametrize(
+    ("name", "valid"),
+    [
+        ("queens", queens_valid),
+        ("tango", tango_valid),
+        ("zip", zip_valid),
+        ("mini-sudoku", sudoku_valid),
+        ("patches", patches_valid),
+        ("wend", None),
+    ],
+)
+def test_detection_names_the_game_of_each_second_screenshot(name: str, valid) -> None:  # type: ignore[no-untyped-def]
+    """Patches once read as an all-but-empty Mini Sudoku, which any grid solves."""
+    outcome = solve_image(None, real.image(f"{name}-2"))
+    assert outcome["game"] == name
+    if valid is not None:
+        assert valid(outcome["board"], outcome["solution"])

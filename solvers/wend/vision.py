@@ -18,6 +18,9 @@ WALL_GRAY = 215
 LETTER_DARK = 128
 """Grey level below which a pixel belongs to a letter."""
 
+SLOT_CONTRAST = 12
+"""Slot boxes are at least this much darker than the page: they measure ~225 on a ~250 background."""
+
 
 class WendVisionParser(BaseVisionParser[WendBoard, list[WordPlacement]]):
     def parse(self, image: np.ndarray) -> WendBoard:
@@ -47,7 +50,10 @@ class WendVisionParser(BaseVisionParser[WendBoard, list[WordPlacement]]):
         The slots may sit beside the grid in the same screenshot (boxes inside ``grid_corners`` are skipped) or
         come as a screenshot of their own. Boxes are kept when near-square and close to the median box size.
         """
-        contours, _ = cv2.findContours(self.threshold(image), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Unblurred, so the few-pixel gaps between small boxes stay open (blurring merged them into blobs).
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        mask = (gray < np.percentile(gray, 95) - SLOT_CONTRAST).astype(np.uint8)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         boxes: list[tuple[int, int, int, int]] = []
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
