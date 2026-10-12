@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 import tracemalloc
 from abc import ABC, abstractmethod
@@ -11,6 +12,9 @@ from dataclasses import dataclass, field
 from typing import Generic, TypeVar
 
 from core.explainer import Explainer
+
+_TRACING = threading.RLock()
+"""tracemalloc is process-wide, so memory-profiled solves on different threads (Streamlit reruns) take turns."""
 
 BoardT = TypeVar("BoardT")
 SolutionT = TypeVar("SolutionT")
@@ -82,15 +86,23 @@ class BaseSolver(ABC, Generic[BoardT, SolutionT]):
         """Measure wall-clock latency (µs) and, optionally, peak traced memory (KiB)."""
         record = ProfileRecord()
         if track_memory:
-            if tracemalloc.is_tracing():
-                raise RuntimeError("tracemalloc is already tracing; nested memory profiling is not supported")
-            tracemalloc.start()
+            _TRACING.acquire()
+            try:
+                if tracemalloc.is_tracing():
+                    raise RuntimeError("tracemalloc is already tracing; nested memory profiling is not supported")
+                tracemalloc.start()
+            except BaseException:
+                _TRACING.release()
+                raise
         start = time.perf_counter_ns()
         try:
             yield record
         finally:
             record.latency_us = (time.perf_counter_ns() - start) / 1_000
             if track_memory:
-                _, peak = tracemalloc.get_traced_memory()
-                tracemalloc.stop()
+                try:
+                    _, peak = tracemalloc.get_traced_memory()
+                    tracemalloc.stop()
+                finally:
+                    _TRACING.release()
                 record.peak_memory_kb = peak / 1024

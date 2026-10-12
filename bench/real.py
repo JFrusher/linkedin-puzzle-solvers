@@ -133,3 +133,12 @@ WEND = WendBoard(
 )
 """Word lengths come from the separate ``wend-slots`` screenshot."""
 WEND_ANSWER = ("DIRECT", "UPGRADE", "LEFTOVER", "RIGHTEOUS", "DOWNLOADED")
+
+WEND_2 = WendBoard(
+    letters=tuple(
+        tuple(None if ch == "#" else ch for ch in row) for row in ("Y#NEB", "T#DLE", "E#V#M", "IRA#O", "CUT#N")
+    ),
+    word_lengths=(3, 4, 5, 7),
+)
+"""Small slot boxes beside the grid, in the same screenshot: their narrow gaps once merged under blur."""
+WEND_2_ANSWER = ("CUT", "BEND", "LEMON", "VARIETY")

@@ -79,18 +79,27 @@ def pinpoint_page() -> None:
         show_run(result.profile, result.explanation.steps)
 
 
+def pasted_image(key: str) -> np.ndarray | None:
+    """A paste box; returns the pasted screenshot as BGR, or None until one arrives."""
+    with st.container():  # keeps the paste box in the page instead of pinned to the bottom
+        pasted = st.chat_input(
+            "Click here, Ctrl+V a screenshot, Enter", accept_file=True, file_type=IMAGE_TYPES, key=key
+        )
+    if not pasted or not pasted.files:
+        return None
+    image = cv2.imdecode(np.frombuffer(pasted.files[0].getvalue(), dtype=np.uint8), cv2.IMREAD_COLOR)
+    if image is None:
+        st.error("That paste is not a decodable image.")
+    return image
+
+
 def paste_page() -> None:
     st.markdown(
         "Take a screenshot of the board (**Win+Shift+S**), click the box below, press **Ctrl+V**, then **Enter**. "
         "The game is detected for you."
     )
-    with st.container():  # keeps the paste box in the page instead of pinned to the bottom
-        pasted = st.chat_input("Click here, Ctrl+V a screenshot, Enter", accept_file=True, file_type=IMAGE_TYPES)
-    if not pasted or not pasted.files:
-        return
-    image = cv2.imdecode(np.frombuffer(pasted.files[0].getvalue(), dtype=np.uint8), cv2.IMREAD_COLOR)
+    image = pasted_image("paste-auto")
     if image is None:
-        st.error("That paste is not a decodable image.")
         return
     try:
         with st.spinner("Detecting the game and solving…"):
@@ -134,12 +143,16 @@ def typed_page(name: str) -> None:
 def vision_page(name: str) -> None:
     game = get_game(name)
     assert game.parser is not None
-    sources = ["Synthetic sample", "Upload screenshot"] + (["Type the board"] if game.text else [])
+    sources = ["Paste screenshot", "Synthetic sample", "Upload screenshot"] + (["Type the board"] if game.text else [])
     source = st.radio("Board source", sources, horizontal=True)
     if source == "Type the board":
         typed_page(name)
         return
-    if source == "Upload screenshot":
+    if source == "Paste screenshot":
+        image = pasted_image(f"paste-{name}")
+        if image is None:
+            return
+    elif source == "Upload screenshot":
         upload = st.file_uploader("Screenshot", type=IMAGE_TYPES)
         if upload is None:
             return
