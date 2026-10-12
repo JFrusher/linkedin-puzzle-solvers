@@ -12,7 +12,7 @@ filterwarnings = ["ignore::DeprecationWarning", "ignore::UserWarning", "ignore::
 [tool.mypy]
 strict = true
 ignore_missing_imports = true  # opencv, easyocr, pysat, nltk and streamlit ship no type stubs
-files = ["core", "solvers", "bench", "main.py", "web_app"]
+files = ["core", "solvers", "bench", "main.py", "web_app", "play"]
 
 [tool.coverage.run]
 source = ["core", "solvers", "main"]
