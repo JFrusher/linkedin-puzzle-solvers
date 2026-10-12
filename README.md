@@ -381,8 +381,9 @@ The CLI, the JSON output and the paste page show the rating.
 
 ## Testing
 
-CI runs `ruff`, `mypy --strict` over every module, then `pytest --cov`, which fails below 90% line coverage of
-`core/`, `solvers/` and `main.py` (the badge quotes that floor). Example tests pin known boards, and property tests
+CI runs `ruff`, then `mypy --strict` over `core`, `solvers`, `bench`, `main.py` and `web_app`, then
+`pytest --cov`, which fails below 90% line coverage of `core/`, `solvers/` and `main.py` (the badge quotes that
+floor). Example tests pin known boards, and property tests
 in `tests/test_properties.py` let Hypothesis draw the inputs and check each answer against something independent:
 
 | Property | Oracle |
