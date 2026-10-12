@@ -5,6 +5,7 @@ import json
 import pathlib
 import socket
 import threading
+import tracemalloc
 from collections.abc import Iterator
 from http.server import HTTPServer
 
@@ -47,6 +48,25 @@ def test_profile_serialises_threads_but_rejects_nesting() -> None:
     with BaseSolver.profile(track_memory=True), pytest.raises(RuntimeError, match="nested"):
         with BaseSolver.profile(track_memory=True):
             pass
+
+
+def test_profile_releases_its_lock_when_tracing_fails_to_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken_start() -> None:
+        raise MemoryError
+
+    with monkeypatch.context() as patched:
+        patched.setattr(tracemalloc, "start", broken_start)
+        with pytest.raises(MemoryError), BaseSolver.profile(track_memory=True):
+            pass
+
+    def profiled() -> None:
+        with BaseSolver.profile(track_memory=True):
+            pass
+
+    worker = threading.Thread(target=profiled, daemon=True)  # another thread blocks if the lock leaked
+    worker.start()
+    worker.join(timeout=5)
+    assert not worker.is_alive(), "lock left held after a failed tracemalloc.start()"
 
 
 def test_explainer_serialises() -> None:

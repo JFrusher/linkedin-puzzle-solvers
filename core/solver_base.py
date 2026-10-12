@@ -87,17 +87,22 @@ class BaseSolver(ABC, Generic[BoardT, SolutionT]):
         record = ProfileRecord()
         if track_memory:
             _TRACING.acquire()
-            if tracemalloc.is_tracing():
+            try:
+                if tracemalloc.is_tracing():
+                    raise RuntimeError("tracemalloc is already tracing; nested memory profiling is not supported")
+                tracemalloc.start()
+            except BaseException:
                 _TRACING.release()
-                raise RuntimeError("tracemalloc is already tracing; nested memory profiling is not supported")
-            tracemalloc.start()
+                raise
         start = time.perf_counter_ns()
         try:
             yield record
         finally:
             record.latency_us = (time.perf_counter_ns() - start) / 1_000
             if track_memory:
-                _, peak = tracemalloc.get_traced_memory()
-                tracemalloc.stop()
-                _TRACING.release()
+                try:
+                    _, peak = tracemalloc.get_traced_memory()
+                    tracemalloc.stop()
+                finally:
+                    _TRACING.release()
                 record.peak_memory_kb = peak / 1024
