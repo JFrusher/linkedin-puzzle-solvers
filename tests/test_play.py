@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 import threading
+import time
 from collections.abc import Iterator
 from itertools import islice
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from core.nlp import common_words
 from play.levels import LEVELS, LevelSpec, build_puzzle, distance, level_of
 from play.pool import Pool
 from play.server import make_server
@@ -22,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.parametrize(
     ("game", "level"),
-    [(game, level) for game, levels in LEVELS.items() for level in levels if game != "wend"] + [("wend", "easy")],
+    [(game, level) for game, levels in LEVELS.items() for level in levels],
 )
 def test_every_level_makes_a_board_with_one_answer(game: str, level: str) -> None:
     board = LEVELS[game][level].make(3)
@@ -35,6 +37,23 @@ def test_puzzle_carries_board_answer_steps_and_rating() -> None:
     assert len(puzzle["solution"]) == puzzle["board"]["size"]
     assert puzzle["rating"].split(":")[0] in {"Trivial", "Easy", "Medium", "Hard", "Expert"}
     assert build_puzzle("zip", "hard", LEVELS["zip"]["hard"].make(1))["rating"] == "7×7"
+
+
+@pytest.mark.parametrize("level", ["easy", "medium", "hard"])
+def test_wend_boards_use_everyday_words_and_wall_bars(level: str) -> None:
+    board = LEVELS["wend"][level].make(5)
+    words = [p.word for p in get_game("wend").solver().solve(board)]
+    assert set(words) <= common_words(3), words
+    walls = {(r, c) for r, row in enumerate(board.letters) for c, letter in enumerate(row) if letter is None}
+    assert walls and all(
+        any((r + dr, c + dc) in walls for dr, dc in ((0, 1), (1, 0), (0, -1), (-1, 0))) for r, c in walls
+    )
+
+
+def test_wend_medium_accepts_any_rating_up_to_medium() -> None:
+    bands = LEVELS["wend"]["medium"].bands
+    assert distance("Easy: x", "medium", bands) == 0
+    assert distance("Hard: x", "medium", bands) == 1
 
 
 def test_ratings_map_to_levels() -> None:
@@ -75,6 +94,28 @@ def test_fallback_hands_over_a_board_already_filed_elsewhere() -> None:
     pool = stub_pool(["Easy"], tries=1)
     assert pool.take("queens", "hard")["rating"] == "Easy: x"
     assert not pool.store[("queens", "easy")], "the board was handed over, not copied"
+
+
+def test_request_is_not_stuck_behind_a_long_search_for_a_rare_level() -> None:
+    def slow_medium(seed: int) -> str:
+        time.sleep(0.05)
+        return "Medium"  # never Hard, so a search for Hard runs its full 100 tries (about 5 s)
+
+    levels = {
+        "queens": {
+            "easy": LevelSpec(lambda seed: "Easy", "stub"),
+            "medium": LevelSpec(slow_medium, "stub"),
+            "hard": LevelSpec(slow_medium, "stub"),
+        }
+    }
+    pool = Pool(levels=levels, target=0, tries=100, build=lambda game, level, band: {"rating": f"{band}: x"})
+    hunt = threading.Thread(target=pool.make, args=("queens", "hard"), daemon=True)
+    hunt.start()
+    time.sleep(0.1)
+    started = time.monotonic()
+    assert pool.take("queens", "easy")["rating"] == "Easy: x"
+    assert time.monotonic() - started < 1
+    assert hunt.is_alive(), "the hunt was still running, so the request really overlapped it"
 
 
 def test_generator_that_always_fails_is_reported() -> None:

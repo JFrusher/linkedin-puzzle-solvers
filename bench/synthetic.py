@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 
 from core import visualizer
-from core.nlp import dictionary_words
+from core.nlp import common_words, dictionary_words
 from solvers.crossclimb.solver import CrossclimbBoard
 from solvers.patches.solver import Clue, Patch, PatchesBoard, PatchesSolver
 from solvers.queens.solver import Cell, QueensBoard, QueensSolver
@@ -255,17 +255,27 @@ def generate_tango(n: int, seed: int, givens: int = 4, signs: int = 4) -> tuple[
             shown[(r, c)] = solution[r][c]
 
 
-def generate_wend(n: int, seed: int, walls: int = 1) -> WendBoard:
-    """Tile the open cells with random snakes of 3–6 cells, write a random dictionary word along each, and
+def generate_wend(
+    n: int,
+    seed: int,
+    walls: int = 1,
+    lengths: tuple[int, int] = (3, 6),
+    common: bool = False,
+    bars: int = 0,
+) -> WendBoard:
+    """Tile the open cells with random snakes of ``lengths`` cells, write a random word along each, and
     retry until the board has exactly one answer, like the real game.
+
+    ``common`` draws the words from everyday vocabulary (CUT, LEMON) instead of all of WordNet, and ``bars``
+    adds straight wall runs like LinkedIn's; uniqueness is still checked against the full dictionary.
     """
     rng = random.Random(seed)
     cells = [(r, c) for r in range(n) for c in range(n)]
     by_length: dict[int, list[str]] = {}
-    for word in sorted(dictionary_words(MIN_WORD_LENGTH)):
+    for word in sorted(common_words(MIN_WORD_LENGTH) if common else dictionary_words(MIN_WORD_LENGTH)):
         by_length.setdefault(len(word), []).append(word)
     for _ in range(1000):
-        wall = set(rng.sample(cells, walls))
+        wall = set(rng.sample(cells, walls)) | _wall_bars(n, bars, rng)
         free = set(cells) - wall
         paths: list[list[Cell]] = []
 
@@ -273,7 +283,7 @@ def generate_wend(n: int, seed: int, walls: int = 1) -> WendBoard:
             # Start from the tightest cell so no tile gets stranded.
             path = [min(free, key=lambda cell: (_open_sides(cell, free), rng.random()))]
             free.discard(path[0])
-            target = rng.randint(3, 6)
+            target = rng.randint(*lengths)
             while len(path) < target:
                 r, c = path[-1]
                 options = [
@@ -283,7 +293,7 @@ def generate_wend(n: int, seed: int, walls: int = 1) -> WendBoard:
                     break
                 path.append(rng.choice(options))
                 free.discard(path[-1])
-            if len(path) < MIN_WORD_LENGTH:
+            if len(path) < max(MIN_WORD_LENGTH, lengths[0]) or len(path) not in by_length:
                 break
             paths.append(path)
         else:
@@ -294,7 +304,18 @@ def generate_wend(n: int, seed: int, walls: int = 1) -> WendBoard:
             board = WendBoard(tuple(tuple(row) for row in letters), tuple(sorted(len(path) for path in paths)))
             if len(list(islice(_wend_solver().solutions(board), 2))) == 1:
                 return board
-    raise ValueError(f"could not make a one-answer {n}x{n} board with {walls} wall(s)")
+    raise ValueError(f"could not make a one-answer {n}x{n} board with {walls} wall(s) and {bars} bar(s)")
+
+
+def _wall_bars(n: int, bars: int, rng: random.Random) -> set[Cell]:
+    """Straight wall runs of 2 to n-2 tiles, upright or flat, as LinkedIn's Wend boards draw them."""
+    wall: set[Cell] = set()
+    for _ in range(bars):
+        length = rng.randint(2, max(2, n - 2))
+        start, across = rng.randrange(n - length + 1), rng.randrange(n)
+        run = [(start + i, across) for i in range(length)]
+        wall.update(run if rng.random() < 0.5 else [(c, r) for r, c in run])
+    return wall
 
 
 @lru_cache(maxsize=1)

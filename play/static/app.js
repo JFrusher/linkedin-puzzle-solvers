@@ -14,7 +14,8 @@ const GAMES = {
 const $ = (id) => document.getElementById(id);
 const boardRoot = $("board-root");
 const play = { game: "queens", level: "easy", module: null, puzzle: null, state: null, history: [], future: [],
-  version: 0, started: null, finished: null, hints: 0, hint: null, lastHint: null, loading: 0 };
+  version: 0, started: null, finished: null, hints: 0, hint: null, lastHint: null, loading: 0,
+  shown: new Set(), graceUntil: 0 };
 
 const store = {
   get(name, fallback) { try { return localStorage.getItem(name) ?? fallback; } catch { return fallback; } },
@@ -27,9 +28,15 @@ function seconds() {
 }
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
+const breakId = (b) => `${b.reason}|${b.cells.map(key).sort().join(" ")}`;
+
 function draw() {
   if (!play.puzzle) return;
-  const breaks = play.module.ruleBreaks(play.puzzle, play.state);
+  let breaks = play.module.ruleBreaks(play.puzzle, play.state);
+  // Grace: right after a move, only breaks already on screen stay; new ones wait, so passing through a state
+  // (Tango's sun on the way to a moon) doesn't flash red.
+  if (Date.now() < play.graceUntil) breaks = breaks.filter((b) => play.shown.has(breakId(b)));
+  play.shown = new Set(breaks.map(breakId));
   const marks = { bad: new Set(breaks.flatMap((b) => b.cells.map(key))), hint: play.hint ? key(play.hint.cell) : null };
   play.module.render(boardRoot, play.puzzle, play.state, marks);
   $("problems").replaceChildren(...[...new Set(breaks.map((b) => b.reason))].map((reason) => {
@@ -58,7 +65,7 @@ async function load() {
     const module = await import(`./games/${play.game}.js`);
     if (ticket !== play.loading) return; // a newer request superseded this one
     Object.assign(play, { module, puzzle: body, state: module.init(body), history: [], future: [], version: 0,
-      started: null, finished: null, hints: 0, hint: null, lastHint: null });
+      started: null, finished: null, hints: 0, hint: null, lastHint: null, shown: new Set(), graceUntil: 0 });
     $("rating").textContent = body.rating;
     draw();
   } catch (error) {
@@ -92,6 +99,10 @@ function commit(before) {
   play.version++;
   play.hint = null;
   play.started ??= Date.now();
+  if (play.module.GRACE_MS) {
+    play.graceUntil = Date.now() + play.module.GRACE_MS;
+    setTimeout(draw, play.module.GRACE_MS + 10);
+  }
   if (!play.finished && play.module.isSolved(play.puzzle, play.state)) win();
   draw();
 }

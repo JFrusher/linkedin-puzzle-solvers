@@ -51,6 +51,22 @@ def dictionary_words(min_length: int = 3) -> frozenset[str]:
     )
 
 
+@lru_cache(maxsize=4)
+def common_words(min_length: int = 3, min_count: int = 5) -> frozenset[str]:
+    """Everyday words: lower-case WordNet lemmas whose senses were tagged ``min_count``+ times in SemCor.
+
+    At 5 this keeps about 5,000 words (CUT, LEMON, VARIETY) and drops rarities like ENKI or PATKA.
+    """
+    counts: dict[str, int] = {}
+    for synset in wordnet().all_synsets():
+        for lemma in synset.lemmas():
+            name = lemma.name()
+            if name.isalpha() and name.isascii() and name.islower() and len(name) >= min_length:
+                counts[name] = counts.get(name, 0) + lemma.count()
+    # A vowel (or y) drops lower-case abbreviations such as rpm or mph.
+    return frozenset(name.upper() for name, count in counts.items() if count >= min_count and set(name) & set("aeiouy"))
+
+
 _VOWELS = set("aeiou")
 
 

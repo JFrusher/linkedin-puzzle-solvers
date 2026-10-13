@@ -20,6 +20,10 @@ export function render(root, puzzle, state, marks) {
   const el = board(root, size, (cell, r, c) => {
     if (letters[r][c] === null) {
       cell.classList.add("wall");
+      // Outline only the bar's outer edges, as LinkedIn draws a run of walls as one block.
+      const open = (dr, dc) => letters[r + dr]?.[c + dc] !== undefined && letters[r + dr][c + dc] !== null;
+      const edges = [[-1, 0, "0 3px"], [1, 0, "0 -3px"], [0, -1, "3px 0"], [0, 1, "-3px 0"]];
+      cell.style.boxShadow = edges.filter(([dr, dc]) => open(dr, dc)).map(([, , d]) => `inset ${d} 0 var(--frame)`).join(", ");
       return;
     }
     cell.textContent = letters[r][c];

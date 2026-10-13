@@ -3,6 +3,8 @@
 import { board, grid, lines, place } from "./common.js";
 
 const ICON = { sun: "☀", moon: "☾" };
+/** A moon is two clicks away (empty → sun → moon), so new rule breaks wait this long before showing. */
+export const GRACE_MS = 1000;
 const NEXT = { null: "sun", sun: "moon", moon: null };
 
 export const init = (puzzle) => grid(puzzle.board.size, (r, c) => puzzle.board.givens[r][c]);

@@ -55,25 +55,25 @@ class Pool:
         rated = get_game(game).rated
         closest: tuple[int, dict[str, Any]] | None = None
         deadline = time.monotonic() + self.budget_s
-        with self.generating:
-            for _ in range(self.tries):
+        for _ in range(self.tries):
+            # Locked per board, not per search: a request waits for one board, not for a 60 s hunt for a rare level.
+            with self.generating:
                 try:
-                    board = self.levels[game][level].make(self.seeds.randrange(2**31))
+                    puzzle = self.build(game, level, self.levels[game][level].make(self.seeds.randrange(2**31)))
                 except ValueError:  # a generator gave up on this seed
                     continue
-                puzzle = self.build(game, level, board)
-                if not rated:
-                    return puzzle
-                gap = distance(puzzle["rating"], level)
-                if gap == 0:
-                    return puzzle
-                landed = (game, level_of(puzzle["rating"]))
-                if landed in self.store and len(self.store[landed]) < self.target:
-                    self.store[landed].append({**puzzle, "level": landed[1]})
-                elif closest is None or gap < closest[0]:
-                    closest = (gap, puzzle)
-                if time.monotonic() > deadline:
-                    break
+            if not rated:
+                return puzzle
+            gap = distance(puzzle["rating"], level, self.levels[game][level].bands)
+            if gap == 0:
+                return puzzle
+            landed = (game, level_of(puzzle["rating"]))
+            if landed in self.store and len(self.store[landed]) < self.target:
+                self.store[landed].append({**puzzle, "level": landed[1]})
+            elif closest is None or gap < closest[0]:
+                closest = (gap, puzzle)
+            if time.monotonic() > deadline:
+                break
         return closest[1] if closest is not None else self._nearest_ready(game, level)
 
     def _nearest_ready(self, game: str, level: str) -> dict[str, Any]:

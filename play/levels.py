@@ -28,6 +28,8 @@ class LevelSpec:
     """seed -> board, from the ``bench.synthetic`` generators."""
     label: str
     """Shown for unrated games (Zip), whose level comes from size and clue count alone."""
+    bands: tuple[str, ...] | None = None
+    """Ratings accepted at this level when they differ from ``BANDS``: Wend has no Medium rule to rate by."""
 
 
 LEVELS: dict[str, dict[str, LevelSpec]] = {
@@ -52,10 +54,14 @@ LEVELS: dict[str, dict[str, LevelSpec]] = {
         "medium": LevelSpec(lambda seed: synthetic.generate_patches(6, seed)[0], "6×6"),
         "hard": LevelSpec(lambda seed: synthetic.generate_patches(7, seed)[0], "7×7"),
     },
+    # LinkedIn-like: everyday words, a few long ones, straight wall bars. Wend's rules rate Easy (Only Word, Nook)
+    # or Hard (Try and Fail) and nothing between, so Medium is the bigger board at any rating up to Medium.
     "wend": {
-        "easy": LevelSpec(lambda seed: synthetic.generate_wend(4, seed), "4×4"),
-        "medium": LevelSpec(lambda seed: synthetic.generate_wend(5, seed), "5×5"),
-        "hard": LevelSpec(lambda seed: synthetic.generate_wend(6, seed), "6×6"),
+        "easy": LevelSpec(lambda seed: synthetic.generate_wend(5, seed, 0, (3, 7), True, 2), "5×5"),
+        "medium": LevelSpec(
+            lambda seed: synthetic.generate_wend(6, seed, 0, (4, 8), True, 2), "6×6", ("Trivial", "Easy", "Medium")
+        ),
+        "hard": LevelSpec(lambda seed: synthetic.generate_wend(7, seed, 0, (5, 9), True, 3), "7×7"),
     },
 }
 
@@ -66,10 +72,10 @@ def level_of(rating: str) -> str:
     return next(level for level, bands in BANDS.items() if band in bands)
 
 
-def distance(rating: str, level: str) -> int:
-    """How many rating bands ``rating`` sits from ``level``; 0 inside it."""
+def distance(rating: str, level: str, bands: tuple[str, ...] | None = None) -> int:
+    """How many rating bands ``rating`` sits from ``level`` (or from ``bands``, when given); 0 inside it."""
     index = RATINGS.index(rating.split(":")[0])
-    return min(abs(index - RATINGS.index(band)) for band in BANDS[level])
+    return min(abs(index - RATINGS.index(band)) for band in bands or BANDS[level])
 
 
 def _cells(cells: Any) -> list[list[int]]:
