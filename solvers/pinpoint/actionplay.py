@@ -28,7 +28,7 @@ def get_conceptnet_actions(clue: str) -> set[str]:
         synsets = [s for token in clean_clue.split() for s in wn.synsets(token, pos=wn.NOUN)]
 
     for synset in synsets:
-        # 1. Check derivationally related forms (e.g., noun 'walk' -> verb 'walk')
+        # Check derivationally related forms (e.g., noun 'walk' -> verb 'walk')
         for lemma in synset.lemmas():
             for rel in lemma.derivationally_related_forms():
                 if rel.synset().pos() == wn.VERB:
@@ -36,17 +36,8 @@ def get_conceptnet_actions(clue: str) -> set[str]:
                     if verb_name not in IGNORED_VERBS:
                         actions.add(verb_name)
 
-        # 2. Extract words from definitions, but ONLY keep them if WordNet classifies them as a VERB
-        text_corpus = synset.definition().lower()
-        words = re.findall(r"\b[a-z]+\b", text_corpus)
-        for word in words:
-            if len(word) > 2 and word not in IGNORED_VERBS:
-                # Verify that the extracted word actually functions as a verb in WordNet
-                if wn.synsets(word, pos=wn.VERB):
-                    actions.add(word)
-
-    # 3. Safe domain fallback for physical objects/paths
-    if any(w in clean_clue for w in ["dog", "street", "line", "plank", "tightrope", "bridge", "road", "rope"]):
+    # Domain fallback for physical objects/paths, matched as whole words.
+    if re.search(r"\b(?:dog|street|line|plank|tightrope|bridge|road|rope)\b", clean_clue):
         actions.update(["walk", "cross"])
 
     return actions
