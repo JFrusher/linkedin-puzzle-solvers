@@ -21,8 +21,7 @@ import numpy as np
 
 from core.nlp import embed, wordnet
 from core.solver_base import BaseSolver
-from solvers.pinpoint import wordplay, actionplay
-
+from solvers.pinpoint import actionplay, wordplay
 
 MAX_HYPERNYM_DEPTH = 6
 SPECIFIC_DEPTH = 7
