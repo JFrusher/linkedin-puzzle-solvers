@@ -21,7 +21,8 @@ import numpy as np
 
 from core.nlp import embed, wordnet
 from core.solver_base import BaseSolver
-from solvers.pinpoint import wordplay
+from solvers.pinpoint import wordplay, actionplay
+
 
 MAX_HYPERNYM_DEPTH = 6
 SPECIFIC_DEPTH = 7
@@ -49,6 +50,7 @@ class SemanticEngine:
         self._hypernyms: list[dict[str, int]] = []
         """Per clue: hypernym label -> its WordNet depth."""
         self._joins: list[set[str]] = []
+        self._actions: list[set[str]] = []
         self._label_cache: dict[str, np.ndarray] = {}
         self.candidate_count = 0
         """Hypernym categories scored by the latest :meth:`ranking` call."""
@@ -58,6 +60,7 @@ class SemanticEngine:
         self._clue_vectors.clear()
         self._hypernyms.clear()
         self._joins.clear()
+        self._actions.clear()
         self.candidate_count = 0
 
     @property
@@ -76,6 +79,7 @@ class SemanticEngine:
         self._clue_vectors.append(embed([clue])[0])
         self._hypernyms.append(self._hypernym_labels(clue))
         self._joins.append(wordplay.joins(clue))
+        self._actions.append(actionplay.get_conceptnet_actions(clue))
         return self.ranking()
 
     @staticmethod
@@ -105,7 +109,12 @@ class SemanticEngine:
             for label in labels:
                 play_hits[label] = play_hits.get(label, 0) + 1
         play_hits.update(wordplay.senses(self.clues))
-        play = sorted(label for label, hits in play_hits.items() if hits >= MIN_WORDPLAY_CLUES and hits > specific)
+        
+        # Merge action-play hits (e.g. "things you can walk")
+        action_hits = actionplay.score_actions(self.clues)
+        play_hits.update(action_hits)
+
+        play = sorted(label for label, hits in play_hits.items() if hits >= 2 and hits > specific)
         candidates = meaning + play
         self.candidate_count = len(candidates)
         if not candidates:
