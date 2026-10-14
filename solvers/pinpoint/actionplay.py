@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-import re
 from collections import defaultdict
+import re
 
 from core.nlp import wordnet
+
+# Common auxiliary/descriptor verbs to ignore when parsing definitions
+IGNORED_VERBS = {"be", "have", "do", "use", "used", "make", "take", "get", "include"}
 
 
 def _clean_clue(clue: str) -> str:
@@ -19,7 +22,6 @@ def get_conceptnet_actions(clue: str) -> set[str]:
     wn = wordnet()
     clean_clue = _clean_clue(clue)
     key = clean_clue.replace(" ", "_")
-
     actions = set()
     synsets = wn.synsets(key, pos=wn.NOUN)
     if not synsets:
@@ -30,13 +32,15 @@ def get_conceptnet_actions(clue: str) -> set[str]:
         for lemma in synset.lemmas():
             for rel in lemma.derivationally_related_forms():
                 if rel.synset().pos() == wn.VERB:
-                    actions.add(rel.name().lower())
+                    verb_name = rel.name().lower()
+                    if verb_name not in IGNORED_VERBS:
+                        actions.add(verb_name)
 
         # 2. Extract words from definitions, but ONLY keep them if WordNet classifies them as a VERB
         text_corpus = synset.definition().lower()
         words = re.findall(r"\b[a-z]+\b", text_corpus)
         for word in words:
-            if len(word) > 2:
+            if len(word) > 2 and word not in IGNORED_VERBS:
                 # Verify that the extracted word actually functions as a verb in WordNet
                 if wn.synsets(word, pos=wn.VERB):
                     actions.add(word)
@@ -52,14 +56,15 @@ def score_actions(clues: list[str]) -> dict[str, int]:
     """Gather action candidates across all clues and score by intersection coverage."""
     if not clues:
         return {}
-
     candidate_counts: defaultdict[str, int] = defaultdict(int)
     clue_actions_list = [get_conceptnet_actions(c) for c in clues]
-
     all_actions = set().union(*clue_actions_list) if clue_actions_list else set()
+    
+    # Require action categories to match at least 3 clues (or total clues if fewer than 3)
+    min_hits = min(3, len(clues))
+    
     for action in all_actions:
         hits = sum(1 for actions in clue_actions_list if action in actions)
-        if hits >= 2:  # Must apply to at least 2 clues
+        if hits >= min_hits:
             candidate_counts[f"things you can {action}"] = hits
-
     return dict(candidate_counts)
