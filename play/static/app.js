@@ -71,6 +71,7 @@ async function load() {
   } catch (error) {
     if (ticket !== play.loading) return;
     $("rating").textContent = "";
+    draw();
     const retry = document.createElement("button");
     retry.textContent = "Retry";
     retry.onclick = load;
@@ -78,7 +79,7 @@ async function load() {
     message.className = "error";
     message.textContent = `Could not load a puzzle: ${error.message} `;
     message.append(retry);
-    boardRoot.replaceChildren(message);
+    boardRoot.append(message);
   }
 }
 
