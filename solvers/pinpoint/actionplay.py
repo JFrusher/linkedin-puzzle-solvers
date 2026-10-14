@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 import re
+from collections import defaultdict
 
 from core.nlp import wordnet
 
@@ -59,10 +59,10 @@ def score_actions(clues: list[str]) -> dict[str, int]:
     candidate_counts: defaultdict[str, int] = defaultdict(int)
     clue_actions_list = [get_conceptnet_actions(c) for c in clues]
     all_actions = set().union(*clue_actions_list) if clue_actions_list else set()
-    
+
     # Require action categories to match at least 3 clues (or total clues if fewer than 3)
     min_hits = min(3, len(clues))
-    
+
     for action in all_actions:
         hits = sum(1 for actions in clue_actions_list if action in actions)
         if hits >= min_hits:
