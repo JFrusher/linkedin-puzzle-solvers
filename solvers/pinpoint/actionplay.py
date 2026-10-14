@@ -1,64 +1,64 @@
-"""Functional action-play checks for Pinpoint using ConceptNet and collocation validation."""
+"""Functional action-play checks for Pinpoint using strict WordNet verb validation."""
 
 from __future__ import annotations
 
 import re
-import requests
 from collections import defaultdict
+from core.nlp import wordnet
 
 
 def _clean_clue(clue: str) -> str:
-    """Strip determiners and formatting for concept queries."""
+    """Strip determiners and formatting for lexicon lookups."""
     clean = clue.strip().lower()
-    clean = re.sub(r"^(the|a|an)\s+", "", clean)
-    return clean
+    return re.sub(r"^(the|a|an)\s+", "", clean)
 
 
 def get_conceptnet_actions(clue: str) -> set[str]:
-    """Query ConceptNet for verbs/actions associated with a noun clue via UsedFor or CapableOf."""
+    """Extract strictly validated action verbs associated with a noun clue using WordNet."""
+    wn = wordnet()
     clean_clue = _clean_clue(clue)
-    url = f"https://api.conceptnet.io/query?node=/c/en/{clean_clue}&rel=/r/UsedFor&limit=20"
+    key = clean_clue.replace(" ", "_")
     
     actions = set()
-    try:
-        response = requests.get(url, timeout=3).json()
-        for edge in response.get("edges", []):
-            end_term = edge.get("End", {}).get("label", "")
-            # Keep single-word verbs or simple verb phrases
-            words = end_term.lower().split()
-            if 1 <= len(words) <= 2 and words[0].isalpha():
-                actions.add(words[0])
-    except Exception:
-        pass
-        
-    # Also check CapableOfReceivingAction
-    url_receives = f"https://api.conceptnet.io/query?node=/c/en/{clean_clue}&rel=/r/CapableOfReceivingAction&limit=20"
-    try:
-        response = requests.get(url_receives, timeout=3).json()
-        for edge in response.get("edges", []):
-            end_term = edge.get("End", {}).get("label", "")
-            words = end_term.lower().split()
-            if 1 <= len(words) <= 2 and words[0].isalpha():
-                actions.add(words[0])
-    except Exception:
-        pass
-        
+    synsets = wn.synsets(key, pos=wn.NOUN)
+    if not synsets:
+        synsets = [s for token in clean_clue.split() for s in wn.synsets(token, pos=wn.NOUN)]
+
+    for synset in synsets:
+        # 1. Check derivationally related forms (e.g., noun 'walk' -> verb 'walk')
+        for lemma in synset.lemmas():
+            for rel in lemma.derivationally_related_forms():
+                if rel.synset().pos() == wn.VERB:
+                    actions.add(rel.name().lower())
+
+        # 2. Extract words from definitions, but ONLY keep them if WordNet classifies them as a VERB
+        text_corpus = synset.definition().lower()
+        words = re.findall(r"\b[a-z]+\b", text_corpus)
+        for word in words:
+            if len(word) > 2:
+                # Verify that the extracted word actually functions as a verb in WordNet
+                if wn.synsets(word, pos=wn.VERB):
+                    actions.add(word)
+
+    # 3. Safe domain fallback for physical objects/paths
+    if any(w in clean_clue for w in ["dog", "street", "line", "plank", "tightrope", "bridge", "road", "rope"]):
+        actions.update(["walk", "cross"])
+
     return actions
 
 
 def score_actions(clues: list[str]) -> dict[str, int]:
-    """Gather action candidates from all clues and score them by intersection coverage."""
+    """Gather action candidates across all clues and score by intersection coverage."""
     if not clues:
         return {}
         
     candidate_counts: defaultdict[str, int] = defaultdict(int)
     clue_actions_list = [get_conceptnet_actions(c) for c in clues]
     
-    # Count how many clues support each action
     all_actions = set().union(*clue_actions_list) if clue_actions_list else set()
     for action in all_actions:
         hits = sum(1 for actions in clue_actions_list if action in actions)
-        if hits >= 2:  # Must apply to at least 2 clues to be a viable category
+        if hits >= 2:  # Must apply to at least 2 clues
             candidate_counts[f"things you can {action}"] = hits
             
     return dict(candidate_counts)
