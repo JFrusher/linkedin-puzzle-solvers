@@ -135,7 +135,7 @@ Solver Engine (solvers/tango/solver.py):
   - No 3-in-a-row/col ($\neg (x_1 \land x_2 \land x_3)$).
   - Relational operators ($A = B \implies x_A \iff x_B$).
 
-### 3.4 Pinpoint (Patches)
+### 3.4 Pinpoint
 
 Sequential Input (solvers/pinpoint/cli_stream.py):
 
