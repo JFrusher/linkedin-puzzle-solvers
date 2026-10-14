@@ -45,3 +45,27 @@ def test_action_scores_use_validated_candidates() -> None:
         "things you can walk": 3,
         "things you can cross": 3,
     }
+
+
+@pytest.mark.parametrize(
+    "actions,expected",
+    [
+        ([], {}),
+        ([{"walk"}], {"things you can walk": 1}),
+        ([{"walk", "cross"}, {"walk"}], {"things you can walk": 2}),
+        ([{"walk"}, {"walk"}, set()], {}),
+        ([{"walk", "cross"}, {"walk", "cross"}, {"walk"}, set()], {"things you can walk": 3}),
+    ],
+)
+def test_cached_actions_preserve_scoring_without_lookups(
+    monkeypatch: pytest.MonkeyPatch, actions: list[set[str]], expected: dict[str, int]
+) -> None:
+    clues = [str(i) for i in range(len(actions))]
+    monkeypatch.setattr(actionplay, "get_conceptnet_actions", lambda clue: actions[int(clue)])
+    assert actionplay.score_actions(clues) == expected
+
+    def unexpected_lookup(clue: str) -> set[str]:
+        pytest.fail("cached action scoring must not repeat lookups")
+
+    monkeypatch.setattr(actionplay, "get_conceptnet_actions", unexpected_lookup)
+    assert actionplay.score_actions(clues, actions=actions) == expected

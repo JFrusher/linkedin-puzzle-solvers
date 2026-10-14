@@ -110,7 +110,7 @@ class SemanticEngine:
         play_hits.update(wordplay.senses(self.clues))
 
         # Merge action-play hits (e.g. "things you can walk")
-        action_hits = actionplay.score_actions(self.clues)
+        action_hits = actionplay.score_actions(self.clues, actions=self._actions)
         play_hits.update(action_hits)
 
         play = sorted(label for label, hits in play_hits.items() if hits >= 2 and hits > specific)
