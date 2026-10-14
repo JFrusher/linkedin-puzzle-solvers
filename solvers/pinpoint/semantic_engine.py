@@ -108,7 +108,7 @@ class SemanticEngine:
             for label in labels:
                 play_hits[label] = play_hits.get(label, 0) + 1
         play_hits.update(wordplay.senses(self.clues))
-        
+
         # Merge action-play hits (e.g. "things you can walk")
         action_hits = actionplay.score_actions(self.clues)
         play_hits.update(action_hits)

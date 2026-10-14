@@ -19,7 +19,7 @@ def get_conceptnet_actions(clue: str) -> set[str]:
     wn = wordnet()
     clean_clue = _clean_clue(clue)
     key = clean_clue.replace(" ", "_")
-    
+
     actions = set()
     synsets = wn.synsets(key, pos=wn.NOUN)
     if not synsets:
@@ -52,14 +52,14 @@ def score_actions(clues: list[str]) -> dict[str, int]:
     """Gather action candidates across all clues and score by intersection coverage."""
     if not clues:
         return {}
-        
+
     candidate_counts: defaultdict[str, int] = defaultdict(int)
     clue_actions_list = [get_conceptnet_actions(c) for c in clues]
-    
+
     all_actions = set().union(*clue_actions_list) if clue_actions_list else set()
     for action in all_actions:
         hits = sum(1 for actions in clue_actions_list if action in actions)
         if hits >= 2:  # Must apply to at least 2 clues
             candidate_counts[f"things you can {action}"] = hits
-            
+
     return dict(candidate_counts)
