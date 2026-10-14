@@ -68,7 +68,11 @@ class Pool:
             if gap == 0:
                 return puzzle
             landed = (game, level_of(puzzle["rating"]))
-            if landed in self.store and len(self.store[landed]) < self.target:
+            if (
+                landed in self.store
+                and distance(puzzle["rating"], landed[1], self.levels[game][landed[1]].bands) == 0
+                and len(self.store[landed]) < self.target
+            ):
                 self.store[landed].append({**puzzle, "level": landed[1]})
             elif closest is None or gap < closest[0]:
                 closest = (gap, puzzle)

@@ -43,12 +43,12 @@ def get_conceptnet_actions(clue: str) -> set[str]:
     return actions
 
 
-def score_actions(clues: list[str]) -> dict[str, int]:
-    """Gather action candidates across all clues and score by intersection coverage."""
+def score_actions(clues: list[str], *, actions: list[set[str]] | None = None) -> dict[str, int]:
+    """Score action candidates by intersection coverage, using cached per-clue actions when supplied."""
     if not clues:
         return {}
     candidate_counts: defaultdict[str, int] = defaultdict(int)
-    clue_actions_list = [get_conceptnet_actions(c) for c in clues]
+    clue_actions_list = actions if actions is not None else [get_conceptnet_actions(c) for c in clues]
     all_actions = set().union(*clue_actions_list) if clue_actions_list else set()
 
     # Require action categories to match at least 3 clues (or total clues if fewer than 3)

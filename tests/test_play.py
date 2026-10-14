@@ -90,6 +90,26 @@ def test_unreachable_level_falls_back_to_the_closest_rating() -> None:
     assert pool.take("queens", "hard")["rating"] == "Medium: x"
 
 
+@pytest.mark.parametrize("bands", [None, ("Medium", "Hard"), ("Easy",)])
+def test_refiling_respects_destination_bands(bands: tuple[str, ...] | None) -> None:
+    pool = stub_pool(["Medium", "Hard"], tries=2)
+    pool.levels["queens"]["medium"] = LevelSpec(lambda seed: "Medium", "stub", bands)
+    assert pool.take("queens", "hard")["rating"] == "Hard: x"
+    filed = list(pool.store[("queens", "medium")])
+    if bands == ("Easy",):
+        assert filed == []
+    else:
+        assert [(p["rating"], p["level"]) for p in filed] == [("Medium: x", "medium")]
+
+
+def test_rejected_refiling_remains_available_as_closest() -> None:
+    pool = stub_pool(["Easy", "Medium"], tries=2)
+    pool.levels["queens"]["medium"] = LevelSpec(lambda seed: "Medium", "stub", ("Easy",))
+    assert pool.take("queens", "hard")["rating"] == "Medium: x"
+    assert not pool.store[("queens", "medium")]
+    assert [p["rating"] for p in pool.store[("queens", "easy")]] == ["Easy: x"]
+
+
 def test_fallback_hands_over_a_board_already_filed_elsewhere() -> None:
     pool = stub_pool(["Easy"], tries=1)
     assert pool.take("queens", "hard")["rating"] == "Easy: x"
