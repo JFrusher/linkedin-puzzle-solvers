@@ -13,7 +13,7 @@ const GAMES = {
 
 const $ = (id) => document.getElementById(id);
 const boardRoot = $("board-root");
-const play = { game: "queens", level: "easy", module: null, puzzle: null, state: null, history: [], future: [],
+const play = { game: "queens", level: "easy", loadedGame: "queens", loadedLevel: "easy", module: null, puzzle: null, state: null, history: [], future: [],
   version: 0, started: null, finished: null, hints: 0, hint: null, lastHint: null, loading: 0,
   shown: new Set(), graceUntil: 0 };
 
@@ -64,7 +64,7 @@ async function load() {
     if (!response.ok) throw new Error(body.error ?? response.statusText);
     const module = await import(`./games/${play.game}.js`);
     if (ticket !== play.loading) return; // a newer request superseded this one
-    Object.assign(play, { module, puzzle: body, state: module.init(body), history: [], future: [], version: 0,
+    Object.assign(play, { loadedGame: play.game, loadedLevel: play.level, module, puzzle: body, state: module.init(body), history: [], future: [], version: 0,
       started: null, finished: null, hints: 0, hint: null, lastHint: null, shown: new Set(), graceUntil: 0 });
     $("rating").textContent = body.rating;
     draw();
@@ -206,13 +206,13 @@ function win() {
   play.finished = Date.now();
   play.started ??= play.finished;
   const time = seconds();
-  const name = `play:best:${play.game}:${play.level}`;
+  const name = `play:best:${play.loadedGame}:${play.loadedLevel}`;
   const best = Number(store.get(name, "0"));
   const record = !best || time < best;
   if (record) store.set(name, String(time));
   const hints = play.hints ? ` with ${play.hints} hint${play.hints > 1 ? "s" : ""}` : "";
   $("win-text").textContent =
-    `${GAMES[play.game][0]} (${play.level}) in ${clock(time)}${hints}. ` +
+    `${GAMES[play.loadedGame][0]} (${play.loadedLevel}) in ${clock(time)}${hints}. ` +
     (record ? (best ? `New best (was ${clock(best)})!` : "First solve at this level!") : `Best: ${clock(best)}.`);
   $("win").showModal();
 }
