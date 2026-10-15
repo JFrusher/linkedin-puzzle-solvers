@@ -1,9 +1,10 @@
-"""Unified CLI: solve screenshots, stream Pinpoint clues, run benchmarks or serve the REST backend.
+"""Unified CLI: solve screenshots, stream Pinpoint clues, run benchmarks, serve the REST backend or play.
 
 python main.py solve --game queens --image board.png
 python main.py stream --game pinpoint
 python main.py benchmark --game all
 python main.py serve --port 8765
+python main.py play
 """
 
 from __future__ import annotations
@@ -298,6 +299,28 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_play(args: argparse.Namespace) -> int:
+    import webbrowser
+
+    from play.pool import Pool
+    from play.server import make_server
+
+    pool = Pool()
+    pool.start()
+    server = make_server(args.host, args.port, pool)
+    url = f"http://{args.host}:{args.port}/"
+    console.print(f"Play at {url} (boards generate in the background; Ctrl+C to stop)")
+    if not args.no_browser:
+        webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        console.print("Shutting down")
+    finally:
+        server.server_close()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="main.py", description="LinkedIn Puzzle Solvers Engine")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -330,6 +353,12 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
     serve.set_defaults(handler=cmd_serve)
+
+    play = commands.add_parser("play", help="generate puzzles and play them in the browser")
+    play.add_argument("--host", default="127.0.0.1")
+    play.add_argument("--port", type=int, default=8770)
+    play.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    play.set_defaults(handler=cmd_play)
     return parser
 
 

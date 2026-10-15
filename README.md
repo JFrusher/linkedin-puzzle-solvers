@@ -165,6 +165,23 @@ top/bottom clue, then the middle clues. See `examples/`.
 and use a synthetic sample, an uploaded screenshot or a typed board. Each run shows the solved board, the
 deduction log, latency and memory, and debug views of every vision stage.
 
+### Play generated puzzles
+
+```bash
+python main.py play          # opens http://127.0.0.1:8770
+```
+
+A sister app to the playground: fresh boards for Queens, Zip, Tango, Mini Sudoku, Patches and Wend at
+Easy / Medium / Hard, played in the browser with LinkedIn-style mouse controls. Rule breaks (two crowns in a row,
+three suns, a repeated digit) show as you play. **Hint** points at a mistake if you have one; otherwise it gives the
+solver's next deduction step, the same log the solver explains its own answers with. The page also has undo / redo,
+a timer, and personal bests kept in the browser.
+
+Levels come from `core/difficulty.py`: each game's generator settings per level are in `play/levels.py`, and a
+background pool keeps boards ready, so New is instant. When a level is rare for a game (Hard Mini Sudoku), the pool
+serves the closest board it found and the page shows its real rating. Zip has no rating, so its levels are size and
+clue count.
+
 ### Browser extension (solve on the LinkedIn page)
 
 1. Start the local server and leave it running: `python main.py serve` (listens on `127.0.0.1:8765`).
@@ -412,8 +429,9 @@ solvers/       queens · zip · tango · pinpoint · crossclimb · wend · sudok
 bench/         benchmark_runner · synthetic (seeded generators + skewed renderers) · real (screenshot boards) · gifs · scaling
 tests/         one suite per game + core, real screenshots (fixtures/real), typed boards, animations, properties
 web_app/       Streamlit playground (sample, upload or typed board · Raw · Contours · HSV Masks · Graph Nodes tabs)
+play/          generate-and-play app: levels · pool · server (Python) + static/ page with one JS module per game
 extension/     Manifest V3: background.js (capture + REST) · content.js (overlay)
-main.py        CLI: solve · stream · benchmark · serve
+main.py        CLI: solve · stream · benchmark · serve · play
 examples/      typed boards for --text (Wend, Crossclimb)
 docs/          case-studies · decisions · IMPROVEMENTS.md (measurements) · overlays · GIFs · social preview
 ```

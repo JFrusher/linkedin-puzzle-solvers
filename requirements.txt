@@ -11,7 +11,7 @@ nltk>=3.8
 
 # Interfaces
 rich>=13.7
-streamlit>=1.35
+streamlit>=1.43  # st.chat_input accept_file / file_type, used by the paste box
 pandas>=2.2
 pillow>=10.0  # README animations (python -m bench.gifs)
 matplotlib>=3.8  # README scaling chart (python -m bench.scaling)

@@ -112,3 +112,6 @@ def test_detection_names_the_game_of_each_second_screenshot(name: str, valid) ->
     assert outcome["game"] == name
     if valid is not None:
         assert valid(outcome["board"], outcome["solution"])
+    else:
+        assert outcome["board"] == real.WEND_2
+        assert sorted(p.word for p in outcome["solution"]) == sorted(real.WEND_2_ANSWER)

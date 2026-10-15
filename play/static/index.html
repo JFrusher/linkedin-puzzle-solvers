@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Puzzle Play</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Puzzle Play</h1>
+    <nav id="games" aria-label="Game"></nav>
+  </header>
+  <main>
+    <section class="card">
+      <div class="toolbar">
+        <div class="levels" role="radiogroup" aria-label="Level">
+          <button data-level="easy">Easy</button>
+          <button data-level="medium">Medium</button>
+          <button data-level="hard">Hard</button>
+        </div>
+        <span id="rating" class="muted"></span>
+        <span id="timer" aria-label="Time">0:00</span>
+      </div>
+      <div id="board-root" class="board-root" aria-live="polite"></div>
+      <ul id="problems" class="problems"></ul>
+      <p id="hint" class="hint-text" hidden></p>
+      <div class="toolbar">
+        <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
+        <button id="redo" title="Redo (Ctrl+Y)">Redo</button>
+        <button id="clear">Clear</button>
+        <button id="hint-button">Hint</button>
+        <button id="new" class="primary">New puzzle</button>
+      </div>
+      <p id="help" class="muted"></p>
+    </section>
+  </main>
+  <dialog id="win">
+    <h2>Solved!</h2>
+    <p id="win-text"></p>
+    <form method="dialog"><button class="primary" id="win-new">Next puzzle</button> <button>Close</button></form>
+  </dialog>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

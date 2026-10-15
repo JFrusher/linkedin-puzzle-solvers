@@ -65,6 +65,32 @@ def _fake_embed(texts: list[str]) -> np.ndarray:
     return np.array([row / np.linalg.norm(row) for row in rows])
 
 
+def test_ranking_reuses_actions_and_reset_clears_them(monkeypatch: pytest.MonkeyPatch) -> None:
+    lookups: list[str] = []
+
+    def actions(clue: str) -> set[str]:
+        lookups.append(clue)
+        return {"walk"} if clue in {"dog", "rope"} else set()
+
+    monkeypatch.setattr(semantic_engine, "embed", _fake_embed)
+    monkeypatch.setattr(SemanticEngine, "_hypernym_labels", staticmethod(lambda clue: {}))
+    monkeypatch.setattr(wordplay, "joins", lambda clue: set())
+    monkeypatch.setattr(wordplay, "senses", lambda clues: {})
+    monkeypatch.setattr(semantic_engine.actionplay, "get_conceptnet_actions", actions)
+    engine = SemanticEngine()
+    assert engine.add_clue("dog") == []
+    ranking = engine.add_clue("rope")
+    assert ranking[0].label == "things you can walk"
+    assert ranking[0].coverage == 1.0
+    assert engine.ranking() == ranking
+    assert engine.ranking() == ranking
+    assert lookups == ["dog", "rope"]
+
+    engine.reset()
+    assert engine.add_clue("telescope") == []
+    assert lookups == ["dog", "rope", "telescope"]
+
+
 @pytest.mark.parametrize("clues,leader", [(BREAKER, 'words before "breaker"'), (TREES, None), (WHALES, None)])
 def test_word_play_leads_only_when_meaning_explains_less(
     monkeypatch: pytest.MonkeyPatch, clues: list[str], leader: str | None
